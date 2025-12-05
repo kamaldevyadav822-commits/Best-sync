@@ -48,7 +48,8 @@ function createSocketHandlers(io, logger, config) {
             currentTrackUrl: room.currentTrackUrl,
             isPlaying: room.isPlaying,
             currentTime: room.currentTime
-          }
+          },
+          chat: room.chatMessages || []
         });
       } catch (e) {
         logger.error(e, "room:join failed");
@@ -105,6 +106,42 @@ function createSocketHandlers(io, logger, config) {
         currentTime: time,
         ts: Date.now()
       });
+    });
+
+    // -------- CHAT: SEND MESSAGE --------
+    socket.on("chat:send", (payload = {}, cb = () => {}) => {
+      try {
+        let { roomId, userName, text } = payload;
+        roomId = (roomId || "").trim();
+        text = (text || "").toString().trim();
+
+        if (!roomId || !text) return cb({ ok: false, error: "INVALID" });
+        if (text.length > 300) {
+          text = text.slice(0, 300);
+        }
+
+        const room = roomStore.get(roomId);
+        if (!room) return cb({ ok: false, error: "ROOM_NOT_FOUND" });
+
+        const message = roomStore.addChatMessage(roomId, {
+          userName,
+          text,
+          ts: Date.now()
+        });
+
+        if (!message) return cb({ ok: false, error: "INTERNAL_ERROR" });
+
+        // broadcast to everyone in room
+        io.to(roomId).emit("chat:new", {
+          roomId,
+          ...message
+        });
+
+        cb({ ok: true });
+      } catch (e) {
+        logger.error(e, "chat:send failed");
+        cb({ ok: false, error: "INTERNAL_ERROR" });
+      }
     });
 
     // -------- DISCONNECT --------
