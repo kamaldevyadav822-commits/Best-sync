@@ -7,23 +7,22 @@
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-  <div class="w-full max-w-lg px-4">
+<body class="min-h-screen bg-black text-slate-100 flex items-center justify-center">
+  <div class="w-full max-w-lg px-4 pb-6">
     <!-- Top info line -->
     <div class="text-xs text-center text-slate-400 mb-4">
       <span class="font-medium text-slate-300">Now:</span>
       <span class="ml-1">Listen in sync with friends using a 4-digit room code.</span>
     </div>
 
-    <!-- Main card -->
-    <div class="bg-black/70 border border-slate-800 rounded-2xl p-6 shadow-2xl backdrop-blur">
+    <!-- Join/Create card -->
+    <div class="bg-[#05070b] border border-slate-800 rounded-2xl p-6 shadow-2xl backdrop-blur">
       <!-- Online count -->
       <div class="flex items-center text-xs text-slate-400 mb-2">
         <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-2"></span>
         <span id="onlineCount">0 people listening now</span>
       </div>
 
-      <!-- Title -->
       <h1 class="text-xl font-semibold text-slate-50 mb-1">
         Join a Beatsync Room
       </h1>
@@ -31,7 +30,7 @@
         Enter a 4-digit room code to join or create a new room.
       </p>
 
-      <!-- 4-digit room code inputs -->
+      <!-- 4-digit code inputs -->
       <div class="flex justify-center gap-2 mb-3">
         <input id="roomCell-0" maxlength="1"
                class="room-cell w-10 h-12 rounded-xl border border-slate-700 bg-slate-950 text-center text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -47,10 +46,9 @@
                type="text" inputmode="numeric" autocomplete="off" />
       </div>
 
-      <!-- hidden combined code -->
       <input id="roomCodeInput" type="hidden" />
 
-      <!-- Username line -->
+      <!-- Username -->
       <div class="flex items-center justify-between text-xs text-slate-400 mb-4">
         <span>
           You'll join as
@@ -62,7 +60,7 @@
         </button>
       </div>
 
-      <!-- Join + create buttons -->
+      <!-- Buttons -->
       <div class="flex flex-col gap-2 mb-3">
         <button id="btnJoinRoom"
                 class="w-full py-2.5 rounded-full bg-slate-800 hover:bg-slate-700 text-sm font-semibold">
@@ -76,10 +74,8 @@
         </button>
       </div>
 
-      <!-- Room status text -->
       <div id="roomStatus" class="text-xs text-slate-400 min-h-[18px]"></div>
 
-      <!-- Bottom info -->
       <div class="mt-5 pt-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-500">
         <span>Use your device speakers.</span>
         <div class="flex items-center gap-4 opacity-60">
@@ -89,59 +85,140 @@
       </div>
     </div>
 
-    <!-- Player card -->
-    <div class="mt-6 bg-slate-950/80 border border-slate-800 rounded-2xl p-4">
-      <div class="flex items-center justify-between mb-2">
-        <div class="text-xs text-slate-400">
-          Room: <span id="badgeRoom" class="font-mono text-slate-100">—</span>
+    <!-- ROOM PANEL: shown only after join/create -->
+    <div id="roomPanel" class="mt-6 bg-[#05070b] border border-slate-800 rounded-2xl shadow-2xl backdrop-blur hidden">
+      <!-- Header bar -->
+      <div class="flex items-center justify-between px-4 pt-3 pb-2 border-b border-slate-800">
+        <div>
+          <div class="flex items-center gap-2 text-xs text-slate-400">
+            <span class="inline-flex items-center gap-1">
+              <span class="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center text-[10px]">★</span>
+              <span class="font-semibold">BeatSync</span>
+            </span>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-1">
+            Room <span id="badgeRoom" class="font-mono text-slate-100">—</span> ·
+            Role <span id="badgeRole" class="font-semibold text-amber-400">NONE</span>
+          </div>
         </div>
-        <div class="text-xs text-slate-400">
-          Role: <span id="badgeRole" class="font-semibold text-amber-400">NONE</span>
+        <div class="flex items-center gap-3 text-xl text-slate-500">
+          <span>🕹️</span>
+          <span>👥</span>
+          <span>⚙️</span>
         </div>
       </div>
 
-      <!-- Track input (host only) -->
-      <div class="mb-2">
-        <label class="block text-xs text-slate-400 mb-1">
-          Track URL (MP3 / stream) – host only
-        </label>
-        <div class="flex gap-2">
-          <input id="trackUrlInput"
-                 class="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                 placeholder="Paste direct audio URL" type="url" />
-          <button id="btnSetTrack"
-                  class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold">
-            Set
+      <!-- Tabs -->
+      <div class="px-4 pt-2">
+        <div class="flex text-xs mb-2 border-b border-slate-800">
+          <button
+            class="tab-btn py-2 px-3 -mb-px border-b-2 border-transparent text-slate-500"
+            data-tab="session">
+            Session
+          </button>
+          <button
+            class="tab-btn py-2 px-3 -mb-px border-b-2 border-indigo-500 text-slate-100"
+            data-tab="music">
+            Music
+          </button>
+          <button
+            class="tab-btn py-2 px-3 -mb-px border-b-2 border-transparent text-slate-500"
+            data-tab="fun">
+            Fun
           </button>
         </div>
-        <div id="trackStatus" class="text-[11px] text-slate-400 mt-1 min-h-[14px]"></div>
       </div>
 
-      <!-- Audio player -->
-      <audio id="audioPlayer" class="w-full mt-1" controls></audio>
+      <!-- Tab content -->
+      <div class="px-4 pb-3">
+        <!-- Session (placeholder) -->
+        <div id="tab-session" class="hidden text-xs text-slate-400 py-4">
+          Session info and controls will go here later.
+        </div>
 
-      <!-- Controls -->
-      <div class="flex gap-2 mt-3">
-        <button id="btnPlay"
-                class="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold">
-          Play
-        </button>
-        <button id="btnPause"
-                class="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold">
-          Pause
-        </button>
-        <button id="btnSyncNow"
-                class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[11px]">
-          Force Sync
-        </button>
+        <!-- Music tab -->
+        <div id="tab-music" class="block">
+          <!-- Search bar -->
+          <div class="flex items-center gap-2 mb-3">
+            <div class="flex-1 flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-full px-3 py-1.5">
+              <span class="text-sm">🔍</span>
+              <input
+                id="trackSearchInput"
+                type="text"
+                placeholder="What do you want to play?"
+                class="flex-1 bg-transparent text-xs outline-none placeholder:text-slate-500"
+              />
+            </div>
+            <span class="text-[10px] text-slate-500 px-2 py-1 border border-slate-700 rounded-md">
+              EXPERIMENTAL
+            </span>
+          </div>
+
+          <!-- Default tracks button -->
+          <div class="text-center mb-3">
+            <button
+              id="btnLoadDefaults"
+              class="inline-flex items-center justify-center px-4 py-2 rounded-full bg-slate-100 text-slate-900 text-xs font-semibold hover:bg-white">
+              Load default tracks
+            </button>
+          </div>
+
+          <!-- Tracks list -->
+          <div id="tracksList" class="space-y-2 text-xs text-slate-300">
+            <div class="text-center text-slate-500 text-[11px] py-6">
+              No tracks yet. Load default tracks or search.
+            </div>
+          </div>
+        </div>
+
+        <!-- Fun tab -->
+        <div id="tab-fun" class="hidden text-xs text-slate-400 py-4">
+          Fun effects and reactions will go here later.
+        </div>
       </div>
 
-      <div class="flex items-center justify-between text-[11px] text-slate-400 mt-2">
-        <span id="roleInfo">Not connected</span>
-        <span id="timeInfo">00:00</span>
-      </div>
+      <!-- Bottom player area -->
+      <div class="border-t border-slate-800 px-4 pt-2 pb-3">
+        <div class="mb-2">
+          <label class="block text-[11px] text-slate-500 mb-1">
+            Track URL (MP3 / stream) – host only
+          </label>
+          <div class="flex gap-2">
+            <input id="trackUrlInput"
+                   class="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                   placeholder="Paste direct audio URL" type="url" />
+            <button id="btnSetTrack"
+                    class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold">
+              Set
+            </button>
+          </div>
+          <div id="trackStatus" class="text-[11px] text-slate-400 mt-1 min-h-[14px]"></div>
+        </div>
 
-      <div id="globalStatus" class="text-[11px] text-slate-400 mt-1 min-h-[14px]"></div>
+        <audio id="audioPlayer" class="w-full mt-1" controls></audio>
+
+        <div class="flex gap-2 mt-3">
+          <button id="btnPlay"
+                  class="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold">
+            Play
+          </button>
+          <button id="btnPause"
+                  class="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold">
+            Pause
+          </button>
+          <button id="btnSyncNow"
+                  class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[11px]">
+            Force Sync
+          </button>
+        </div>
+
+        <div class="flex items-center justify-between text-[11px] text-slate-400 mt-2">
+          <span id="roleInfo">Not connected</span>
+          <span id="timeInfo">00:00</span>
+        </div>
+
+        <div id="globalStatus" class="text-[11px] text-slate-400 mt-1 min-h-[14px]"></div>
+      </div>
     </div>
   </div>
 
