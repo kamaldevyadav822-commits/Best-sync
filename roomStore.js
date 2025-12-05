@@ -1,1 +1,0 @@
-const { customAlphabet } = require("nanoid");
