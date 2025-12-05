@@ -43,13 +43,11 @@ const tracksList = document.getElementById("tracksList");
 
 // Tabs
 const tabButtons = document.querySelectorAll(".tab-btn");
-const tabSession = document.getElementById("tab-session");
 const tabMusic = document.getElementById("tab-music");
-const tabFun = document.getElementById("tab-fun");
+const tabChat = document.getElementById("tab-chat");
+const playerPanel = document.getElementById("playerPanel");
 
-// Fun/Chat
-const funTabChat = document.getElementById("funTabChat");
-const funTabSpatial = document.getElementById("funTabSpatial");
+// Chat
 const chatEmpty = document.getElementById("chatEmpty");
 const chatMessagesEl = document.getElementById("chatMessages");
 const chatInput = document.getElementById("chatInput");
@@ -60,7 +58,7 @@ let currentRoomId = null;
 let role = "NONE";
 let chatMessagesState = [];
 
-// Default demo tracks (royalty-free samples)
+// Default demo tracks (royalty-free)
 const defaultTracks = [
   {
     id: "sample3",
@@ -192,6 +190,7 @@ function showRoomPanel() {
 tabButtons.forEach((btn) => {
   btn.addEventListener("click", () => {
     const tab = btn.dataset.tab;
+
     tabButtons.forEach((b) => {
       b.classList.remove("border-indigo-500", "text-slate-100");
       b.classList.add("border-transparent", "text-slate-500");
@@ -199,29 +198,16 @@ tabButtons.forEach((btn) => {
     btn.classList.add("border-indigo-500", "text-slate-100");
     btn.classList.remove("text-slate-500");
 
-    tabSession.classList.add("hidden");
-    tabMusic.classList.add("hidden");
-    tabFun.classList.add("hidden");
-
-    if (tab === "session") tabSession.classList.remove("hidden");
-    if (tab === "music") tabMusic.classList.remove("hidden");
-    if (tab === "fun") tabFun.classList.remove("hidden");
+    if (tab === "music") {
+      tabMusic.classList.remove("hidden");
+      tabChat.classList.add("hidden");
+      playerPanel.classList.remove("hidden"); // show player
+    } else if (tab === "chat") {
+      tabChat.classList.remove("hidden");
+      tabMusic.classList.add("hidden");
+      playerPanel.classList.add("hidden");    // full-screen chat (no player)
+    }
   });
-});
-
-// Fun tab inside toggle (Chat / Spatial)
-funTabChat.addEventListener("click", () => {
-  funTabChat.classList.add("bg-slate-800", "text-slate-100");
-  funTabChat.classList.remove("text-slate-500");
-  funTabSpatial.classList.remove("bg-slate-800");
-  funTabSpatial.classList.add("text-slate-500");
-});
-
-funTabSpatial.addEventListener("click", () => {
-  // Abhi ke liye sirf UI; feature future me
-  funTabSpatial.classList.add("bg-slate-800", "text-slate-100");
-  funTabChat.classList.remove("bg-slate-800");
-  funTabChat.classList.add("text-slate-500");
 });
 
 // ========== TRACK LIST RENDER ==========
@@ -337,11 +323,9 @@ function renderChat(messages) {
     })
     .join("");
 
-  // scroll to bottom
   chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
 }
 
-// Send chat message
 function sendChatMessage() {
   if (!currentRoomId) {
     setStatus(globalStatus, "Join a room first.", "error");
@@ -530,7 +514,7 @@ setInterval(() => {
   timeInfo.textContent = formatTime(audioPlayer.currentTime);
 }, 500);
 
-// Incoming from server
+// Player sync events
 socket.on("player:trackChanged", ({ url, currentTime, isPlaying }) => {
   if (!url) return;
   audioPlayer.src = url;
@@ -557,7 +541,7 @@ socket.on("player:sync", ({ isPlaying, currentTime }) => {
   setStatus(globalStatus, "Synced with host.", "success");
 });
 
-// New chat message from server
+// Chat events
 socket.on("chat:new", (msg) => {
   if (!msg || msg.roomId !== currentRoomId) return;
   chatMessagesState.push(msg);
