@@ -18,6 +18,7 @@ const onlineCount = document.getElementById("onlineCount");
 const usernameLabel = document.getElementById("usernameLabel");
 const btnRegenerateName = document.getElementById("btnRegenerateName");
 
+const joinCard = document.getElementById("joinCard");
 const roomPanel = document.getElementById("roomPanel");
 
 const trackUrlInput = document.getElementById("trackUrlInput");
@@ -46,9 +47,18 @@ const tabSession = document.getElementById("tab-session");
 const tabMusic = document.getElementById("tab-music");
 const tabFun = document.getElementById("tab-fun");
 
+// Fun/Chat
+const funTabChat = document.getElementById("funTabChat");
+const funTabSpatial = document.getElementById("funTabSpatial");
+const chatEmpty = document.getElementById("chatEmpty");
+const chatMessagesEl = document.getElementById("chatMessages");
+const chatInput = document.getElementById("chatInput");
+const chatSendBtn = document.getElementById("chatSendBtn");
+
 // ========== STATE ==========
 let currentRoomId = null;
 let role = "NONE";
+let chatMessagesState = [];
 
 // Default demo tracks (royalty-free samples)
 const defaultTracks = [
@@ -103,6 +113,10 @@ function updateRoleUI() {
   const host = role === "HOST";
   trackUrlInput.disabled = !host;
   btnSetTrack.disabled = !host;
+}
+
+function getUserName() {
+  return (usernameLabel.textContent || "guest").trim();
 }
 
 // ========== RANDOM USERNAME ==========
@@ -171,6 +185,7 @@ socket.on("stats:update", ({ online }) => {
 // ========== ROOM PANEL VISIBILITY ==========
 function showRoomPanel() {
   roomPanel.classList.remove("hidden");
+  if (joinCard) joinCard.classList.add("hidden");
 }
 
 // ========== TABS ==========
@@ -192,6 +207,21 @@ tabButtons.forEach((btn) => {
     if (tab === "music") tabMusic.classList.remove("hidden");
     if (tab === "fun") tabFun.classList.remove("hidden");
   });
+});
+
+// Fun tab inside toggle (Chat / Spatial)
+funTabChat.addEventListener("click", () => {
+  funTabChat.classList.add("bg-slate-800", "text-slate-100");
+  funTabChat.classList.remove("text-slate-500");
+  funTabSpatial.classList.remove("bg-slate-800");
+  funTabSpatial.classList.add("text-slate-500");
+});
+
+funTabSpatial.addEventListener("click", () => {
+  // Abhi ke liye sirf UI; feature future me
+  funTabSpatial.classList.add("bg-slate-800", "text-slate-100");
+  funTabChat.classList.remove("bg-slate-800");
+  funTabChat.classList.add("text-slate-500");
 });
 
 // ========== TRACK LIST RENDER ==========
@@ -224,12 +254,10 @@ function renderTrackList(list) {
     .join("");
 }
 
-// Default tracks button
 btnLoadDefaults.addEventListener("click", () => {
   renderTrackList(defaultTracks);
 });
 
-// Search filter (client-side)
 trackSearchInput.addEventListener("input", () => {
   const q = trackSearchInput.value.trim().toLowerCase();
   if (!q) {
@@ -244,7 +272,6 @@ trackSearchInput.addEventListener("input", () => {
   renderTrackList(filtered);
 });
 
-// Track click: host plays
 tracksList.addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-track-id]");
   if (!btn) return;
@@ -261,7 +288,6 @@ tracksList.addEventListener("click", (e) => {
     return;
   }
 
-  // load URL and sync
   trackUrlInput.value = track.url;
   audioPlayer.src = track.url;
   audioPlayer.currentTime = 0;
@@ -270,13 +296,83 @@ tracksList.addEventListener("click", (e) => {
   socket.emit("player:setTrack", { roomId: currentRoomId, url: track.url });
   setStatus(trackStatus, `Loaded: ${track.title}`, "success");
 
-  // auto play + sync
   audioPlayer.play().catch(() => {});
   socket.emit("player:stateChange", {
     roomId: currentRoomId,
     isPlaying: true,
     currentTime: audioPlayer.currentTime || 0
   });
+});
+
+// ========== CHAT RENDER ==========
+function renderChat(messages) {
+  chatMessagesState = messages.slice();
+
+  if (!chatMessagesState.length) {
+    chatEmpty.classList.remove("hidden");
+    chatMessagesEl.classList.add("hidden");
+    return;
+  }
+
+  chatEmpty.classList.add("hidden");
+  chatMessagesEl.classList.remove("hidden");
+
+  chatMessagesEl.innerHTML = chatMessagesState
+    .map((m) => {
+      const time = new Date(m.ts || Date.now());
+      const hh = String(time.getHours()).padStart(2, "0");
+      const mm = String(time.getMinutes()).padStart(2, "0");
+      const me = m.userName === getUserName();
+      return `
+        <div class="flex ${me ? "justify-end" : "justify-start"}">
+          <div class="max-w-[80%] px-3 py-2 rounded-2xl ${
+            me ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-100"
+          } text-[11px]">
+            <div class="font-semibold mb-0.5">${m.userName || "guest"}</div>
+            <div class="">${m.text}</div>
+            <div class="mt-0.5 text-[9px] opacity-70">${hh}:${mm}</div>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  // scroll to bottom
+  chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+}
+
+// Send chat message
+function sendChatMessage() {
+  if (!currentRoomId) {
+    setStatus(globalStatus, "Join a room first.", "error");
+    return;
+  }
+  const text = (chatInput.value || "").trim();
+  if (!text) return;
+
+  socket.emit(
+    "chat:send",
+    {
+      roomId: currentRoomId,
+      userName: getUserName(),
+      text
+    },
+    (resp) => {
+      if (!resp || !resp.ok) {
+        setStatus(globalStatus, "Failed to send message.", "error");
+        return;
+      }
+      chatInput.value = "";
+    }
+  );
+}
+
+chatSendBtn.addEventListener("click", sendChatMessage);
+chatInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    sendChatMessage();
+  }
 });
 
 // ========== CREATE ROOM ==========
@@ -290,6 +386,7 @@ btnCreateRoom.addEventListener("click", () => {
     role = "HOST";
     updateRoleUI();
     showRoomPanel();
+    renderChat([]);
 
     clearRoomCells();
     resp.roomId.split("").forEach((ch, i) => {
@@ -329,6 +426,7 @@ btnJoinRoom.addEventListener("click", () => {
     role = "GUEST";
     updateRoleUI();
     showRoomPanel();
+
     setStatus(roomStatus, `Joined room ${resp.roomId}.`, "success");
 
     if (resp.state && resp.state.currentTrackUrl) {
@@ -342,12 +440,15 @@ btnJoinRoom.addEventListener("click", () => {
         audioPlayer.pause();
       }
     }
+    if (resp.chat) {
+      renderChat(resp.chat);
+    } else {
+      renderChat([]);
+    }
   });
 });
 
 // ========== TRACK URL + PLAYER CONTROLS ==========
-
-// Host sets custom track URL
 btnSetTrack.addEventListener("click", () => {
   if (role !== "HOST") {
     setStatus(trackStatus, "Only host can set the track.", "error");
@@ -371,7 +472,6 @@ btnSetTrack.addEventListener("click", () => {
   setStatus(trackStatus, "Track set and shared with room.", "success");
 });
 
-// Host play
 btnPlay.addEventListener("click", () => {
   if (!currentRoomId) {
     setStatus(globalStatus, "Join or create a room first.", "error");
@@ -392,7 +492,6 @@ btnPlay.addEventListener("click", () => {
   }
 });
 
-// Host pause
 btnPause.addEventListener("click", () => {
   if (!currentRoomId) return;
 
@@ -406,7 +505,6 @@ btnPause.addEventListener("click", () => {
   }
 });
 
-// Host seek -> sync
 audioPlayer.addEventListener("seeked", () => {
   if (role === "HOST" && currentRoomId) {
     socket.emit("player:stateChange", {
@@ -417,7 +515,6 @@ audioPlayer.addEventListener("seeked", () => {
   }
 });
 
-// Force sync
 btnSyncNow.addEventListener("click", () => {
   if (role !== "HOST" || !currentRoomId) return;
   socket.emit("player:stateChange", {
@@ -458,6 +555,13 @@ socket.on("player:sync", ({ isPlaying, currentTime }) => {
     audioPlayer.pause();
   }
   setStatus(globalStatus, "Synced with host.", "success");
+});
+
+// New chat message from server
+socket.on("chat:new", (msg) => {
+  if (!msg || msg.roomId !== currentRoomId) return;
+  chatMessagesState.push(msg);
+  renderChat(chatMessagesState);
 });
 
 socket.on("room:closed", () => {
