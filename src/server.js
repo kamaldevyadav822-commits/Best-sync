@@ -23,8 +23,15 @@ const config = {
 
 const app = express();
 
-// security + CORS
-app.use(helmet());
+// ---------------- SECURITY + CORS ----------------
+
+// Helmet, but CSP off so that Tailwind CDN script allowed
+app.use(
+  helmet({
+    contentSecurityPolicy: false
+  })
+);
+
 app.use(
   cors({
     origin: ALLOWED_ORIGIN === "*" ? true : ALLOWED_ORIGIN.split(","),
@@ -32,6 +39,8 @@ app.use(
     credentials: true
   })
 );
+
+// ---------------- ROUTES ----------------
 
 // healthcheck
 app.get("/health", (req, res) => {
@@ -42,7 +51,8 @@ app.get("/health", (req, res) => {
 const publicDir = path.join(__dirname, "..", "public");
 app.use(express.static(publicDir));
 
-// HTTP + Socket.IO
+// ---------------- SOCKET.IO ----------------
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -50,7 +60,6 @@ const io = new Server(server, {
   }
 });
 
-// attach socket logic
 createSocketHandlers(io, logger, config);
 
 server.listen(PORT, () => {
