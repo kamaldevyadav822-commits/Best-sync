@@ -15,8 +15,8 @@
       <span class="ml-1">Listen in sync with friends using a 4-digit room code.</span>
     </div>
 
-    <!-- Join/Create card -->
-    <div class="bg-[#05070b] border border-slate-800 rounded-2xl p-6 shadow-2xl backdrop-blur">
+    <!-- Join/Create card (will hide after join) -->
+    <div id="joinCard" class="bg-[#05070b] border border-slate-800 rounded-2xl p-6 shadow-2xl backdrop-blur">
       <!-- Online count -->
       <div class="flex items-center text-xs text-slate-400 mb-2">
         <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-2"></span>
@@ -85,7 +85,7 @@
       </div>
     </div>
 
-    <!-- ROOM PANEL: shown only after join/create -->
+    <!-- ROOM PANEL: full-screen style after join/create -->
     <div id="roomPanel" class="mt-6 bg-[#05070b] border border-slate-800 rounded-2xl shadow-2xl backdrop-blur hidden">
       <!-- Header bar -->
       <div class="flex items-center justify-between px-4 pt-3 pb-2 border-b border-slate-800">
@@ -171,9 +171,42 @@
           </div>
         </div>
 
-        <!-- Fun tab -->
-        <div id="tab-fun" class="hidden text-xs text-slate-400 py-4">
-          Fun effects and reactions will go here later.
+        <!-- Fun tab -> Chat UI -->
+        <div id="tab-fun" class="hidden py-4">
+          <!-- Chat / Spatial toggle -->
+          <div class="flex text-xs mb-3 bg-slate-900/80 rounded-full p-1">
+            <button id="funTabChat"
+                    class="flex-1 py-1.5 rounded-full bg-slate-800 text-slate-100 text-xs font-semibold">
+              Chat
+            </button>
+            <button id="funTabSpatial"
+                    class="flex-1 py-1.5 rounded-full text-slate-500 text-xs font-semibold">
+              Spatial
+            </button>
+          </div>
+
+          <!-- Messages -->
+          <div id="chatEmpty" class="text-center text-slate-500 text-[11px] py-6">
+            No messages yet<br />Start the conversation.
+          </div>
+
+          <div id="chatMessages"
+               class="hidden flex flex-col gap-2 text-xs text-slate-100 max-h-56 overflow-y-auto pb-2"></div>
+
+          <!-- Input -->
+          <div class="mt-3">
+            <div class="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-full px-3 py-2">
+              <input
+                id="chatInput"
+                type="text"
+                placeholder="Message"
+                class="flex-1 bg-transparent text-xs outline-none placeholder:text-slate-500"
+              />
+              <button id="chatSendBtn" class="text-xs font-semibold text-indigo-400">
+                Send
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -226,4 +259,4 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="client.js"></script>
 </body>
-  </html>
+</html>
