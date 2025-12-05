@@ -36,7 +36,8 @@ class RoomStore {
       members: new Set([hostSocketId]),
       currentTrackUrl: "",
       isPlaying: false,
-      currentTime: 0
+      currentTime: 0,
+      chatMessages: []        // last messages for chat
     });
 
     this.log.info({ roomId }, "Room created");
@@ -93,6 +94,30 @@ class RoomStore {
     if (!room) return;
 
     Object.assign(room, state, { updatedAt: Date.now() });
+  }
+
+  // Add chat message, keep last 100
+  addChatMessage(roomId, { userName, text, ts }) {
+    const room = this.rooms.get(roomId);
+    if (!room) return null;
+
+    const message = {
+      userName: userName || "anonymous",
+      text: (text || "").toString(),
+      ts: ts || Date.now()
+    };
+
+    if (!Array.isArray(room.chatMessages)) {
+      room.chatMessages = [];
+    }
+
+    room.chatMessages.push(message);
+    if (room.chatMessages.length > 100) {
+      room.chatMessages.splice(0, room.chatMessages.length - 100);
+    }
+
+    room.updatedAt = Date.now();
+    return message;
   }
 
   // Periodic cleanup for expired rooms
