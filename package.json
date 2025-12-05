@@ -1,7 +1,7 @@
 {
   "name": "beatsync-clone",
   "version": "1.0.0",
-  "description": "Production-ready small-scale Beatsync-style music sync app",
+  "description": "Small production-ready Beatsync-style music sync app",
   "main": "src/server.js",
   "scripts": {
     "start": "NODE_ENV=production node src/server.js",
