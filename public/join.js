@@ -1,4 +1,4 @@
-// join.js — handles small UI, random name, and redirect logic to player page
+// join.js — validate room existence before redirecting
 
 function randName() {
   const ADJ = ["silent","lucky","wild","clever","sleepy","cosmic"];
@@ -32,25 +32,42 @@ function setStatus(txt, isError = false) {
   statusEl.className = isError ? "mt-4 text-sm text-red-400" : "mt-4 text-sm text-slate-400";
 }
 
-// JOIN flow: go to player page as GUEST with room code and name
-btnJoin.addEventListener("click", () => {
+// Helper: check room existence using server endpoint
+async function roomExists(code) {
+  try {
+    const r = await fetch(`/api/room-exists?room=${encodeURIComponent(code)}`);
+    if (!r.ok) return false;
+    const j = await r.json();
+    return !!j.exists;
+  } catch (e) {
+    return false;
+  }
+}
+
+// JOIN flow: validate then redirect
+btnJoin.addEventListener("click", async () => {
   const code = (joinCode.value || "").trim();
   if (!/^\d{4}$/.test(code)) {
     setStatus("Enter a valid 4-digit code.", true);
     return;
   }
   const name = (inpName.value || "").trim() || randName();
-  // redirect to player page which will make the socket join
+
+  showLoader("Checking room...");
+  const exists = await roomExists(code);
+  hideLoader();
+
+  if (!exists) {
+    setStatus("Room not found. Check the code or ask host to create a room.", true);
+    return;
+  }
+
+  // safe: redirect to player page join flow
   const url = `/player.html?room=${encodeURIComponent(code)}&role=GUEST&name=${encodeURIComponent(name)}`;
-  // small animation
-  showLoader("Opening room...");
-  setTimeout(() => {
-    hideLoader();
-    window.location.href = url;
-  }, 300);
+  window.location.href = url;
 });
 
-// CREATE flow: go to player page with create=1 (player will call room:create)
+// CREATE flow: create via player page (no change)
 btnCreate.addEventListener("click", () => {
   const name = (inpName.value || "").trim() || randName();
   const url = `/player.html?create=1&role=HOST&name=${encodeURIComponent(name)}`;
@@ -61,10 +78,8 @@ btnCreate.addEventListener("click", () => {
   }, 350);
 });
 
-// UX: allow Enter key on code input
 joinCode.addEventListener("keydown", (e) => {
   if (e.key === "Enter") btnJoin.click();
 });
 
-// populate default name
 if (!inpName.value) inpName.value = randName();
