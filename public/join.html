@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>BeatSync — Join</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gradient-to-b from-slate-900 to-black text-slate-100 flex items-center justify-center">
+  <div class="w-full max-w-xl p-6">
+    <div class="bg-black/60 border border-slate-800 rounded-2xl p-6 shadow-xl transform transition-all duration-500 ease-out hover:scale-[1.01]">
+      <h1 class="text-2xl font-bold mb-1">BeatSync</h1>
+      <p class="text-sm text-slate-400 mb-4">Listen together — create a room or join with a 4-digit code.</p>
+
+      <div id="loader" class="hidden mb-4">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-full border-4 border-t-transparent border-slate-500 animate-spin"></div>
+          <div class="text-sm text-slate-400" id="loaderText">Working…</div>
+        </div>
+      </div>
+
+      <label class="text-xs text-slate-400">Choose your display name</label>
+      <div class="flex items-center gap-2 mb-3">
+        <input id="inpName" class="flex-1 rounded-lg bg-slate-900 px-3 py-2 text-sm outline-none" placeholder="Guest-123" />
+        <button id="btnRand" class="px-3 py-2 rounded-lg bg-slate-800 text-sm">Random</button>
+      </div>
+
+      <div class="mb-3">
+        <label class="text-xs text-slate-400">Join with code</label>
+        <div class="flex gap-2 items-center mt-2">
+          <input id="joinCode" maxlength="4" placeholder="0000" inputmode="numeric"
+                 class="w-32 rounded-lg bg-slate-900 px-3 py-2 text-xl font-mono text-center" />
+          <button id="btnJoin" class="flex-1 rounded-lg bg-emerald-600 py-2 font-semibold">Join Room</button>
+        </div>
+        <p id="joinHint" class="text-xs text-slate-500 mt-2">Or create a new room and share the 4-digit code.</p>
+      </div>
+
+      <div class="mt-4">
+        <button id="btnCreate" class="w-full rounded-full bg-white text-black font-semibold py-2 shadow">Create a new room</button>
+      </div>
+
+      <div id="status" class="mt-4 text-sm text-slate-400 min-h-[18px]"></div>
+    </div>
+
+    <footer class="mt-5 text-center text-xs text-slate-600">
+      <span>Built with ❤️ — Pro UI, separate player page</span>
+    </footer>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="join.js"></script>
+</body>
+</html>
