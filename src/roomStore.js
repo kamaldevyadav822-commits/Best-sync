@@ -34,7 +34,7 @@ class RoomStore {
       createdAt: now,
       updatedAt: now,
       members: new Set([hostSocketId]),
-      currentTrackUrl: "",
+      currentTrack: null, // { type: 'youtube'|'audio', id: 'videoId' or url }
       isPlaying: false,
       currentTime: 0,
       chatMessages: []        // last messages for chat
@@ -93,10 +93,15 @@ class RoomStore {
     const room = this.rooms.get(roomId);
     if (!room) return;
 
-    Object.assign(room, state, { updatedAt: Date.now() });
+    // state may contain: currentTrack (object), isPlaying, currentTime
+    if (state.currentTrack !== undefined) room.currentTrack = state.currentTrack;
+    if (state.isPlaying !== undefined) room.isPlaying = state.isPlaying;
+    if (state.currentTime !== undefined) room.currentTime = state.currentTime;
+
+    room.updatedAt = Date.now();
   }
 
-  // Add chat message, keep last 100
+  // Add chat message, keep last 200
   addChatMessage(roomId, { userName, text, ts }) {
     const room = this.rooms.get(roomId);
     if (!room) return null;
@@ -112,8 +117,8 @@ class RoomStore {
     }
 
     room.chatMessages.push(message);
-    if (room.chatMessages.length > 100) {
-      room.chatMessages.splice(0, room.chatMessages.length - 100);
+    if (room.chatMessages.length > 200) {
+      room.chatMessages.splice(0, room.chatMessages.length - 200);
     }
 
     room.updatedAt = Date.now();
