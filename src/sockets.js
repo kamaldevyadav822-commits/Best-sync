@@ -7,6 +7,9 @@ function createSocketHandlers(io, logger, config) {
     logger
   });
 
+  // expose global pointer for server routes
+  global.__BEATSYNC_ROOMSTORE = roomStore;
+
   io.on("connection", (socket) => {
     logger.info({ socketId: socket.id }, "Socket connected");
 
@@ -45,7 +48,7 @@ function createSocketHandlers(io, logger, config) {
           ok: true,
           roomId,
           state: {
-            currentTrackUrl: room.currentTrackUrl,
+            currentTrack: room.currentTrack,
             isPlaying: room.isPlaying,
             currentTime: room.currentTime
           },
@@ -66,28 +69,32 @@ function createSocketHandlers(io, logger, config) {
     }
 
     // -------- HOST: SET TRACK --------
-    socket.on("player:setTrack", ({ roomId, url } = {}) => {
+    // payload: { roomId, track: { type: 'youtube'|'audio', id: '<videoId or url>' } }
+    socket.on("player:setTrack", ({ roomId, track } = {}) => {
       roomId = (roomId || "").trim();
-      if (!roomId || !url) return;
+      if (!roomId || !track) return;
 
       const res = ensureHost(roomId, socket.id);
       if (!res.ok) return;
 
+      // update the store
       roomStore.updatePlayerState(roomId, {
-        currentTrackUrl: url,
+        currentTrack: track,
         currentTime: 0,
         isPlaying: false
       });
 
+      // broadcast to others
       socket.to(roomId).emit("player:trackChanged", {
-        url,
+        track,
         currentTime: 0,
         isPlaying: false
       });
     });
 
-    // -------- HOST: PLAY/PAUSE/SEEK --------
-    socket.on("player:stateChange", ({ roomId, isPlaying, currentTime } = {}) => {
+    // -------- HOST: PLAY/PAUSE/SEEK (sync) --------
+    // payload: { roomId, isPlaying, currentTime, ts(optional) }
+    socket.on("player:stateChange", ({ roomId, isPlaying, currentTime, ts } = {}) => {
       roomId = (roomId || "").trim();
       if (!roomId) return;
 
@@ -101,6 +108,7 @@ function createSocketHandlers(io, logger, config) {
         currentTime: time
       });
 
+      // include server ts for drift correction
       socket.to(roomId).emit("player:sync", {
         isPlaying: !!isPlaying,
         currentTime: time,
@@ -116,8 +124,8 @@ function createSocketHandlers(io, logger, config) {
         text = (text || "").toString().trim();
 
         if (!roomId || !text) return cb({ ok: false, error: "INVALID" });
-        if (text.length > 300) {
-          text = text.slice(0, 300);
+        if (text.length > 800) {
+          text = text.slice(0, 800);
         }
 
         const room = roomStore.get(roomId);
