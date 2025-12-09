@@ -10,6 +10,16 @@
     @keyframes fadeIn { from {opacity:0; transform: translateY(6px)} to {opacity:1; transform:none} }
     /* make the chat input stand out on mobile */
     #chatFull .chat-footer { box-shadow: 0 -6px 18px rgba(2,6,23,0.6); }
+
+    /* Chat bubble styles */
+    .chat-bubble {
+      max-width: 78%;
+      padding: 10px 12px;
+      border-radius: 16px;
+      line-height: 1.15;
+    }
+    .chat-left { background: rgba(255,255,255,0.06); color: #E6EEF6; border-top-left-radius:4px; }
+    .chat-right { background: #4F46E5; color: white; border-top-right-radius:4px; margin-left: auto; }
   </style>
 </head>
 <body class="min-h-screen bg-gradient-to-b from-slate-900 to-black text-slate-100">
@@ -28,7 +38,7 @@
     </header>
 
     <!-- search bar moved to top (page-wide) -->
-    <div class="mb-4">
+    <div id="searchWrapper" class="mb-4">
       <div class="bg-slate-900 rounded-xl p-3 flex gap-3 items-center">
         <input id="searchPro" placeholder="Search YouTube (Indian music) ..." class="flex-1 rounded-full bg-slate-800 px-4 py-2 outline-none" />
         <button id="btnSearch" class="px-4 py-2 rounded-full bg-indigo-600">Search</button>
