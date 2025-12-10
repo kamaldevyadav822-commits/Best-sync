@@ -44,39 +44,30 @@
         <button id="btnSearch" class="px-4 py-2 rounded-full bg-indigo-600">Search</button>
       </div>
     </div>
+<!-- search results (right column) -->
+      <aside>
+        <div class="bg-slate-900 rounded-2xl p-4 mb-4">
+          <div id="resultsBox" class="space-y-2 max-h-96 overflow-auto"></div>
+        </div>
 
+        <div id="chatMini" class="bg-slate-900 rounded-2xl p-4 hidden">
+          <div id="miniChat" class="text-sm text-slate-400">Switch to Chat tab for full chat.</div>
+        </div>
+      </aside>
     <main id="mainGrid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
       <!-- Player & playlist -->
-      <section id="musicSection" class="md:col-span-2">
-        <div class="bg-slate-800 rounded-2xl p-4 fade-in">
-          <div class="flex items-center gap-4">
-            <div id="cover" class="w-20 h-20 bg-slate-700 rounded-lg flex items-center justify-center text-3xl">▶︎</div>
-            <div class="flex-1">
-              <div id="title" class="text-lg font-semibold">No track</div>
-              <div id="artist" class="text-sm text-slate-400">—</div>
+      
             </div>
 
             <!-- minimal host indicator area -->
-            <div class="text-xs text-slate-400">
-              <div id="hostNote">Host controls</div>
-            </div>
-          </div>
-
+        
           <div class="mt-4">
             <!-- YouTube iframe container -->
             <div id="ytPlayer" class="w-full h-56 bg-black rounded-md overflow-hidden"></div>
 
             <div class="mt-3 flex items-center gap-3">
               <!-- Minimal playback controls (visible only to host) -->
-              <button id="playBig" class="px-3 py-2 rounded-full bg-white text-black font-semibold">Play</button>
-              <button id="prev" class="px-3 py-2 rounded-md bg-slate-700">Prev</button>
-              <button id="next" class="px-3 py-2 rounded-md bg-slate-700">Next</button>
 
-              <div class="flex-1">
-                <input id="seek" type="range" min="0" max="100" value="0" class="w-full" />
-                <div class="flex justify-between text-xs text-slate-400 mt-1">
-                  <span id="curT">00:00</span>
-                  <span id="durT">00:00</span>
                 </div>
               </div>
             </div>
@@ -92,16 +83,7 @@
         </div>
       </section>
 
-      <!-- search results (right column) -->
-      <aside>
-        <div class="bg-slate-900 rounded-2xl p-4 mb-4">
-          <div id="resultsBox" class="space-y-2 max-h-96 overflow-auto"></div>
-        </div>
-
-        <div id="chatMini" class="bg-slate-900 rounded-2xl p-4 hidden">
-          <div id="miniChat" class="text-sm text-slate-400">Switch to Chat tab for full chat.</div>
-        </div>
-      </aside>
+      
 
       <!-- full-screen chat -->
       <section id="chatFull" class="col-span-full hidden">
