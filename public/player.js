@@ -1,24 +1,22 @@
-// player.js — Updated: chat UI fixed, search top, removed duplicate/extra controls behavior
-// Assumes server endpoints and socket events from your server implementation exist.
+// player.js — Updated: chat bubbles aligned left/right, clear search on add/play, search visible only in music tab
 
 const socket = io();
 
 // helpers
-function qs(p) { const u = new URL(window.location.href); return u.searchParams.get(p); }
+function qs(p) { const u=new URL(window.location.href); return u.searchParams.get(p); }
 function el(id) { return document.getElementById(id); }
 function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, (m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-function niceTime(s){ s = Number(s)||0; const m = Math.floor(s/60); const r = Math.floor(s%60); return `${String(m).padStart(2,"0")}:${String(r).padStart(2,"0")}`; }
+function niceTime(s){ s=Number(s)||0; const m=Math.floor(s/60); const r=Math.floor(s%60); return `${String(m).padStart(2,"0")}:${String(r).padStart(2,"0")}`; }
 
-// DOM refs
+// DOM
 const roomBadge = el('roomBadge'), roleBadge = el('roleBadge'), onlineCount = el('onlineCount'), btnLeave = el('btnLeave');
-const searchPro = el('searchPro'), btnSearch = el('btnSearch'), resultsBox = el('resultsBox');
+const searchWrapper = el('searchWrapper'), searchPro = el('searchPro'), btnSearch = el('btnSearch'), resultsBox = el('resultsBox');
 const musicSection = el('musicSection'), chatFull = el('chatFull'), chatWindow = el('chatWindow');
 const msgInput = el('msgInput'), btnSend = el('btnSend');
 const musicTabBtn = el('musicTabBtn'), chatTabBtn = el('chatTabBtn');
 const playlistBox = el('playlistBox'), playBig = el('playBig'), prevBtn = el('prev'), nextBtn = el('next');
 const titleEl = el('title'), artistEl = el('artist'), coverEl = el('cover');
 const seek = el('seek'), curT = el('curT'), durT = el('durT');
-const resultsArea = el('resultsBox');
 
 let currentRoom = qs('room') || null;
 let role = (qs('role') || 'GUEST').toUpperCase();
@@ -29,7 +27,7 @@ let isHost = role === 'HOST';
 roomBadge.textContent = currentRoom || '—';
 roleBadge.textContent = role;
 
-// playlist and current index
+// playlist state
 let playlist = [];
 let currentIndex = -1;
 
@@ -38,8 +36,7 @@ let ytPlayer = null;
 let ytReady = false;
 let waitingForReady = null;
 
-// constants
-const DRIFT_SEEK_THRESHOLD = 0.6; // seconds
+const DRIFT_SEEK_THRESHOLD = 0.6;
 const HEARTBEAT_INTERVAL_MS = 4000;
 
 // ---- UI helpers ----
@@ -62,37 +59,26 @@ function renderPlaylist(){
 
 // ---- YouTube player functions ----
 function createYTPlayer(videoId){
-  if (ytPlayer) {
-    try { ytPlayer.loadVideoById(videoId); } catch(e){ console.warn(e); }
-    return;
-  }
+  if (ytPlayer) { try { ytPlayer.loadVideoById(videoId); } catch(e){} return; }
   ytPlayer = new YT.Player('ytPlayer', {
     height: '100%',
     width: '100%',
     videoId: videoId,
     playerVars: { controls: 1, modestbranding: 1, rel: 0, playsinline: 1 },
     events: {
-      onReady: (e)=>{ ytReady = true; if (waitingForReady){ waitingForReady(); waitingForReady=null; } },
+      onReady: (e)=>{ ytReady=true; if (waitingForReady){ waitingForReady(); waitingForReady=null; } },
       onStateChange: onPlayerStateChange
     }
   });
 }
 
-function loadForGuest(videoId, startAt = 0, autoplay = false){
-  if (!ytReady) {
-    waitingForReady = () => { try { ytPlayer.loadVideoById({ videoId, startSeconds: Math.floor(startAt) }); if (autoplay) ytPlayer.playVideo(); } catch(e){} };
-    if (!ytPlayer) createYTPlayer(videoId);
-    return;
-  }
+function loadForGuest(videoId, startAt=0, autoplay=false){
+  if (!ytReady) { waitingForReady = ()=>{ try { ytPlayer.loadVideoById({videoId, startSeconds: Math.floor(startAt)}); if (autoplay) ytPlayer.playVideo(); } catch(e){} }; if (!ytPlayer) createYTPlayer(videoId); return; }
   try { ytPlayer.loadVideoById({ videoId, startSeconds: Math.floor(startAt) }); if (autoplay) ytPlayer.playVideo(); } catch(e){}
 }
 
 function hostLoad(videoId, startAt=0, autoplay=false){
-  if (!ytReady) {
-    waitingForReady = () => { try { ytPlayer.loadVideoById({ videoId, startSeconds: Math.floor(startAt) }); if (autoplay) ytPlayer.playVideo(); } catch(e){} };
-    if (!ytPlayer) createYTPlayer(videoId);
-    return;
-  }
+  if (!ytReady) { waitingForReady = ()=>{ try { ytPlayer.loadVideoById({videoId, startSeconds: Math.floor(startAt)}); if (autoplay) ytPlayer.playVideo(); } catch(e){} }; if (!ytPlayer) createYTPlayer(videoId); return; }
   try { ytPlayer.loadVideoById({ videoId, startSeconds: Math.floor(startAt) }); if (autoplay) ytPlayer.playVideo(); } catch(e){}
 }
 
@@ -141,6 +127,10 @@ playlistBox.addEventListener('click', (e) => {
 function addToPlaylist(item) {
   playlist.push(item);
   renderPlaylist();
+  // clear search results & search box
+  resultsBox.innerHTML = '';
+  searchPro.value = '';
+  // if nothing playing & host, auto play
   if (currentIndex === -1 && isHost) {
     currentIndex = playlist.length - 1;
     const t = playlist[currentIndex];
@@ -156,15 +146,15 @@ searchPro.addEventListener('keydown', (e)=>{ if (e.key==='Enter') doSearch(); })
 async function doSearch(){
   const q = (searchPro.value||'').trim();
   if (!q) return;
-  resultsArea.innerHTML = '<div class="text-slate-500">Searching…</div>';
+  resultsBox.innerHTML = '<div class="text-slate-500">Searching…</div>';
   try {
     const r = await fetch(`/api/yt/search?q=${encodeURIComponent(q)}&limit=12`);
     if (!r.ok) throw new Error('search failed');
     const j = await r.json();
     const items = j.results || [];
-    if (!items.length) resultsArea.innerHTML = '<div class="text-slate-500">No results</div>';
+    if (!items.length) resultsBox.innerHTML = '<div class="text-slate-500">No results</div>';
     else {
-      resultsArea.innerHTML = items.map(it => {
+      resultsBox.innerHTML = items.map(it => {
         return `<div class="p-2 rounded-md bg-slate-800 flex items-center justify-between">
           <div class="flex items-center gap-3">
             <img src="${escapeHtml(it.thumbnail)}" width="64" height="36" class="rounded-sm"/>
@@ -180,11 +170,11 @@ async function doSearch(){
         </div>`;
       }).join('');
     }
-  } catch(e){ console.error(e); resultsArea.innerHTML = '<div class="text-red-400">Search failed</div>'; }
+  } catch(e){ console.error(e); resultsBox.innerHTML = '<div class="text-red-400">Search failed</div>'; }
 }
 
 // handle add/play from results
-resultsArea.addEventListener('click', (e) => {
+resultsBox.addEventListener('click', (e) => {
   const add = e.target.closest('.addBtn');
   const pnow = e.target.closest('.playNow');
   if (add) {
@@ -195,6 +185,9 @@ resultsArea.addEventListener('click', (e) => {
     if (!isHost) return alert('Only host can start playback');
     socket.emit('player:setTrack', { roomId: currentRoom, track: { type: 'youtube', id } });
     hostLoad(id, 0, true);
+    // clear results and search box after playNow as well
+    resultsBox.innerHTML = '';
+    searchPro.value = '';
   }
 });
 
@@ -204,8 +197,6 @@ socket.on('stats:update', ({online}) => { onlineCount.textContent = (online||0) 
 socket.on('player:trackChanged', ({ track, currentTime, isPlaying } = {}) => {
   if (!track) return;
   if (track.type === 'youtube') {
-    // ensure playlist reflects this track (not strictly necessary)
-    // Load for guests
     loadForGuest(track.id, currentTime || 0, !!isPlaying);
     titleEl.textContent = 'YouTube video';
     artistEl.textContent = '';
@@ -252,11 +243,17 @@ socket.on('chat:new', (m) => {
 });
 
 function renderChat(messages){
+  // messages: [{ userName, text, ts }]
   chatWindow.innerHTML = (messages || []).map(m => {
     const d = new Date(m.ts || Date.now());
     const hh = String(d.getHours()).padStart(2,'0');
     const mm = String(d.getMinutes()).padStart(2,'0');
-    return `<div><div class="font-semibold">${escapeHtml(m.userName)}</div><div class="text-slate-300">${escapeHtml(m.text)}</div><div class="text-xs text-slate-500">${hh}:${mm}</div></div>`;
+    const isMe = (String(m.userName || '').trim() === String(name || '').trim());
+    if (isMe) {
+      return `<div class="flex"><div class="chat-bubble chat-right">${escapeHtml(m.text)}<div class="text-[10px] text-white/80 mt-1 text-right">${hh}:${mm}</div></div></div>`;
+    } else {
+      return `<div class="flex"><div class="chat-bubble chat-left">${escapeHtml(m.userName)}: ${escapeHtml(m.text)}<div class="text-[10px] text-slate-400 mt-1">${hh}:${mm}</div></div></div>`;
+    }
   }).join('');
   chatWindow.scrollTop = chatWindow.scrollHeight;
 }
@@ -296,9 +293,26 @@ socket.on('connect', () => {
   });
 });
 
-// ---- tab controls ----
-function showMusic(){ musicSection.classList.remove('hidden'); chatFull.classList.add('hidden'); musicTabBtn.classList.add('bg-slate-800'); chatTabBtn.classList.remove('bg-slate-800'); }
-function showChat(){ musicSection.classList.add('hidden'); chatFull.classList.remove('hidden'); chatTabBtn.classList.add('bg-slate-800'); musicTabBtn.classList.remove('bg-slate-800'); if (!window._chat) window._chat = []; renderChat(window._chat); }
+// ---- tab controls (search visible only on music) ----
+function showMusic(){
+  musicSection.classList.remove('hidden');
+  chatFull.classList.add('hidden');
+  musicTabBtn.classList.add('bg-slate-800');
+  chatTabBtn.classList.remove('bg-slate-800');
+  // show search bar
+  if (searchWrapper) searchWrapper.style.display = 'block';
+  if (!window._chat) window._chat = [];
+}
+function showChat(){
+  musicSection.classList.add('hidden');
+  chatFull.classList.remove('hidden');
+  chatTabBtn.classList.add('bg-slate-800');
+  musicTabBtn.classList.remove('bg-slate-800');
+  // hide search bar when in chat
+  if (searchWrapper) searchWrapper.style.display = 'none';
+  if (!window._chat) window._chat = [];
+  renderChat(window._chat);
+}
 
 musicTabBtn.addEventListener('click', showMusic);
 chatTabBtn.addEventListener('click', showChat);
@@ -316,5 +330,5 @@ setInterval(() => {
   } catch(e){}
 }, HEARTBEAT_INTERVAL_MS);
 
-// ---- YouTube API ready callback (API loads async) ----
-window.onYouTubeIframeAPIReady = function(){ console.log('YouTube API ready'); /* player created lazily when track set */ };
+// ---- YouTube API ready callback ----
+window.onYouTubeIframeAPIReady = function(){ console.log('YouTube API ready'); };
