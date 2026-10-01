@@ -1,13 +1,14 @@
 /* =========================================================
    BeatSync — player.js
-   Updated:
-   - Realtime YouTube search while typing
-   - Debounced search
-   - Premium SVG action icons
-   - Search result add/play
-   - Search clears after play/add
-   - Playlist cards with SVG icons
-   - Existing room/chat/sync/autoplay functionality preserved
+   Complete updated version
+   - Realtime YouTube search
+   - Mobile search dropdown
+   - Premium SVG icons
+   - Playlist
+   - Chat
+   - Room sync
+   - YouTube player
+   - Autoplay / next track
    ========================================================= */
 
 const socket = io();
@@ -186,6 +187,11 @@ if (onlineCount) {
   style.id = "beatsync-player-runtime-css";
 
   style.textContent = `
+
+    /* =====================================================
+       PLAYLIST
+       ===================================================== */
+
     .playlist-item {
       position: relative;
       display: flex;
@@ -253,6 +259,10 @@ if (onlineCount) {
       background: rgba(255,255,255,.06);
     }
 
+    /* =====================================================
+       ICON BUTTONS
+       ===================================================== */
+
     .icon-action {
       width: 38px;
       height: 38px;
@@ -289,8 +299,11 @@ if (onlineCount) {
       width: 40px;
       height: 40px;
       flex: 0 0 40px;
-      border-radius: 13px;
     }
+
+    /* =====================================================
+       SEARCH RESULTS
+       ===================================================== */
 
     .search-result-item {
       display: flex;
@@ -358,6 +371,10 @@ if (onlineCount) {
       flex: 0 0 auto;
     }
 
+    /* =====================================================
+       LOADER
+       ===================================================== */
+
     .bs-spin {
       animation: bsSpin .8s linear infinite;
     }
@@ -368,33 +385,122 @@ if (onlineCount) {
       }
     }
 
-    @media (max-width: 560px) {
-      .playlist-item,
-      .search-result-item {
-        gap: 9px;
-        padding: 8px;
-        border-radius: 15px;
+    /* =====================================================
+       MOBILE SEARCH DROPDOWN
+       Results appear directly below search bar.
+       ===================================================== */
+
+    @media (max-width: 768px) {
+
+      #searchWrapper {
+        position: relative;
+        z-index: 1000;
       }
 
-      .playlist-item .track-thumb,
-      .search-result-item .result-thumb {
-        width: 48px;
-        height: 48px;
-        flex-basis: 48px;
-        border-radius: 12px;
+      #resultsBox {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        right: 0;
+
+        width: 100%;
+        max-height: min(62vh, 520px);
+
+        overflow-y: auto;
+        overflow-x: hidden;
+
+        padding: 6px;
+
+        border-radius: 20px;
+
+        background: rgba(18, 18, 24, 0.94);
+
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+
+        border: 1px solid rgba(255,255,255,.10);
+
+        box-shadow:
+          0 20px 60px rgba(0,0,0,.35),
+          0 5px 20px rgba(0,0,0,.20);
+
+        scrollbar-width: thin;
       }
 
-      .icon-action,
-      .result-icon {
-        width: 36px;
-        height: 36px;
-        flex-basis: 36px;
-        border-radius: 11px;
+      #resultsBox:empty {
+        display: none;
       }
 
-      .playlist-item .track-title,
-      .search-result-title {
-        font-size: 12.5px;
+      #resultsBox .search-result-item {
+        width: 100%;
+        margin-bottom: 7px;
+      }
+
+      #resultsBox .search-result-item:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    /* =====================================================
+       SMALL ANDROID SCREENS
+       ===================================================== */
+
+    @media (max-width: 480px) {
+
+      #resultsBox {
+        top: calc(100% + 6px);
+        max-height: 58vh;
+        padding: 5px;
+        border-radius: 17px;
+      }
+
+      #resultsBox .search-result-item {
+        padding: 7px;
+        gap: 8px;
+        border-radius: 14px;
+      }
+
+      #resultsBox .result-thumb {
+        width: 46px;
+        height: 46px;
+        flex-basis: 46px;
+      }
+
+      #resultsBox .result-icon {
+        width: 34px;
+        height: 34px;
+        flex-basis: 34px;
+      }
+
+      #resultsBox .search-result-title {
+        font-size: 12px;
+      }
+
+      #resultsBox .search-result-channel {
+        font-size: 10px;
+      }
+    }
+
+    /* =====================================================
+       EXTRA SMALL DEVICES
+       ===================================================== */
+
+    @media (max-width: 360px) {
+
+      #resultsBox {
+        max-height: 55vh;
+      }
+
+      #resultsBox .result-thumb {
+        width: 42px;
+        height: 42px;
+        flex-basis: 42px;
+      }
+
+      #resultsBox .result-icon {
+        width: 32px;
+        height: 32px;
+        flex-basis: 32px;
       }
     }
   `;
@@ -420,10 +526,12 @@ function renderPlaylist() {
         <span>Your playlist is empty</span>
       </div>
     `;
+
     return;
   }
 
   playlist.forEach((track, index) => {
+
     const item = document.createElement("div");
 
     item.className =
@@ -450,13 +558,21 @@ function renderPlaylist() {
       >
 
       <div class="track-main">
+
         <span class="track-title">
-          ${escapeHtml(track.title || "Unknown track")}
+          ${escapeHtml(
+            track.title || "Unknown track"
+          )}
         </span>
 
         <span class="track-subtitle">
-          ${escapeHtml(track.channel || track.artist || "YouTube")}
+          ${escapeHtml(
+            track.channel ||
+            track.artist ||
+            "YouTube"
+          )}
         </span>
+
       </div>
 
       <button
@@ -488,7 +604,10 @@ function renderPlaylist() {
    YOUTUBE PLAYER
    ========================================================= */
 
-function loadYouTubeVideo(videoId, shouldPlay = true) {
+function loadYouTubeVideo(
+  videoId,
+  shouldPlay = true
+) {
   if (!videoId) {
     return;
   }
@@ -502,13 +621,22 @@ function loadYouTubeVideo(videoId, shouldPlay = true) {
   isApplyingRemoteState = true;
 
   try {
-    player.loadVideoById(videoId);
+
+    player.loadVideoById(
+      videoId
+    );
 
     if (!shouldPlay) {
       player.pauseVideo();
     }
+
   } catch (error) {
-    console.error("YouTube load error:", error);
+
+    console.error(
+      "YouTube load error:",
+      error
+    );
+
   }
 
   setTimeout(() => {
@@ -517,39 +645,76 @@ function loadYouTubeVideo(videoId, shouldPlay = true) {
 }
 
 function playCurrentTrack() {
-  if (!currentTrack || !playerReady || !player) {
+
+  if (
+    !currentTrack ||
+    !playerReady ||
+    !player
+  ) {
     return;
   }
 
   try {
     player.playVideo();
   } catch (error) {
-    console.error("YouTube play error:", error);
+    console.error(
+      "YouTube play error:",
+      error
+    );
   }
 }
 
 function pauseCurrentTrack() {
-  if (!playerReady || !player) {
+
+  if (
+    !playerReady ||
+    !player
+  ) {
     return;
   }
 
   try {
     player.pauseVideo();
   } catch (error) {
-    console.error("YouTube pause error:", error);
+    console.error(
+      "YouTube pause error:",
+      error
+    );
   }
 }
 
-function setTrack(track, shouldPlay = true, broadcast = true) {
-  if (!track || !track.videoId) {
+function setTrack(
+  track,
+  shouldPlay = true,
+  broadcast = true
+) {
+
+  if (
+    !track ||
+    !track.videoId
+  ) {
     return;
   }
 
   currentTrack = {
-    videoId: track.videoId,
-    title: track.title || "Unknown track",
-    channel: track.channel || track.artist || "YouTube",
-    artist: track.artist || track.channel || "YouTube",
+
+    videoId:
+      track.videoId,
+
+    title:
+      track.title ||
+      "Unknown track",
+
+    channel:
+      track.channel ||
+      track.artist ||
+      "YouTube",
+
+    artist:
+      track.artist ||
+      track.channel ||
+      "YouTube",
+
     thumbnail:
       track.thumbnail ||
       `https://i.ytimg.com/vi/${encodeURIComponent(
@@ -558,7 +723,8 @@ function setTrack(track, shouldPlay = true, broadcast = true) {
   };
 
   if (titleEl) {
-    titleEl.textContent = currentTrack.title;
+    titleEl.textContent =
+      currentTrack.title;
   }
 
   if (artistEl) {
@@ -575,12 +741,20 @@ function setTrack(track, shouldPlay = true, broadcast = true) {
     shouldPlay
   );
 
-  if (broadcast && roomId) {
-    socket.emit("player:setTrack", {
-      roomId,
-      track: currentTrack,
-      userName
-    });
+  if (
+    broadcast &&
+    roomId
+  ) {
+
+    socket.emit(
+      "player:setTrack",
+      {
+        roomId,
+        track: currentTrack,
+        userName
+      }
+    );
+
   }
 }
 
@@ -589,7 +763,9 @@ function setTrack(track, shouldPlay = true, broadcast = true) {
    ========================================================= */
 
 function removeFromPlaylist(index) {
-  const numericIndex = Number(index);
+
+  const numericIndex =
+    Number(index);
 
   if (
     Number.isNaN(numericIndex) ||
@@ -600,28 +776,39 @@ function removeFromPlaylist(index) {
   }
 
   const removed =
-    playlist.splice(numericIndex, 1)[0];
+    playlist.splice(
+      numericIndex,
+      1
+    )[0];
 
   renderPlaylist();
 
   if (
     removed &&
     currentTrack &&
-    removed.videoId === currentTrack.videoId &&
+    removed.videoId ===
+      currentTrack.videoId &&
     playlist.length
   ) {
+
     const nextTrack =
       playlist[numericIndex] ||
       playlist[0];
 
     if (host) {
-      setTrack(nextTrack, true, true);
+      setTrack(
+        nextTrack,
+        true,
+        true
+      );
     }
   }
 }
 
 function playPlaylistIndex(index) {
-  const numericIndex = Number(index);
+
+  const numericIndex =
+    Number(index);
 
   if (
     Number.isNaN(numericIndex) ||
@@ -631,7 +818,8 @@ function playPlaylistIndex(index) {
     return;
   }
 
-  const track = playlist[numericIndex];
+  const track =
+    playlist[numericIndex];
 
   setTrack(
     track,
@@ -645,82 +833,121 @@ function playPlaylistIndex(index) {
    ========================================================= */
 
 if (playlistBox) {
-  playlistBox.addEventListener("click", (event) => {
-    const playButton =
-      event.target.closest(".play-track");
 
-    const deleteButton =
-      event.target.closest(".delete-track");
+  playlistBox.addEventListener(
+    "click",
+    (event) => {
 
-    if (playButton) {
-      event.stopPropagation();
+      const playButton =
+        event.target.closest(
+          ".play-track"
+        );
 
-      playPlaylistIndex(
-        playButton.dataset.index
-      );
+      const deleteButton =
+        event.target.closest(
+          ".delete-track"
+        );
 
-      return;
+      if (playButton) {
+
+        event.stopPropagation();
+
+        playPlaylistIndex(
+          playButton.dataset.index
+        );
+
+        return;
+      }
+
+      if (deleteButton) {
+
+        event.stopPropagation();
+
+        removeFromPlaylist(
+          deleteButton.dataset.index
+        );
+
+        return;
+      }
+
+      const item =
+        event.target.closest(
+          ".playlist-item"
+        );
+
+      if (!item) {
+        return;
+      }
+
+      const play =
+        item.querySelector(
+          ".play-track"
+        );
+
+      if (play) {
+
+        playPlaylistIndex(
+          play.dataset.index
+        );
+
+      }
+
     }
-
-    if (deleteButton) {
-      event.stopPropagation();
-
-      removeFromPlaylist(
-        deleteButton.dataset.index
-      );
-
-      return;
-    }
-
-    const item =
-      event.target.closest(".playlist-item");
-
-    if (!item) {
-      return;
-    }
-
-    const play =
-      item.querySelector(".play-track");
-
-    if (play) {
-      playPlaylistIndex(
-        play.dataset.index
-      );
-    }
-  });
+  );
 }
 
 /* =========================================================
    ADD TO PLAYLIST
    ========================================================= */
 
-function addToPlaylist(track, autoPlay = true) {
-  if (!track || !track.videoId) {
+function addToPlaylist(
+  track,
+  autoPlay = true
+) {
+
+  if (
+    !track ||
+    !track.videoId
+  ) {
     return;
   }
 
-  const exists = playlist.some(
-    item => item.videoId === track.videoId
-  );
+  const exists =
+    playlist.some(
+      item =>
+        item.videoId ===
+        track.videoId
+    );
 
   if (!exists) {
+
     playlist.push({
-      videoId: track.videoId,
-      title: track.title || "Unknown track",
+
+      videoId:
+        track.videoId,
+
+      title:
+        track.title ||
+        "Unknown track",
+
       channel:
         track.channel ||
         track.artist ||
         "YouTube",
+
       artist:
         track.artist ||
         track.channel ||
         "YouTube",
+
       thumbnail:
         track.thumbnail ||
         `https://i.ytimg.com/vi/${encodeURIComponent(
           track.videoId
         )}/hqdefault.jpg`
+
     });
+
   }
 
   renderPlaylist();
@@ -732,11 +959,15 @@ function addToPlaylist(track, autoPlay = true) {
     !currentTrack &&
     host
   ) {
+
     setTrack(
-      playlist[playlist.length - 1],
+      playlist[
+        playlist.length - 1
+      ],
       true,
       true
     );
+
   }
 }
 
@@ -744,7 +975,10 @@ function addToPlaylist(track, autoPlay = true) {
    SEARCH
    ========================================================= */
 
-async function doSearch(queryOverride = null) {
+async function doSearch(
+  queryOverride = null
+) {
+
   const query =
     (
       queryOverride !== null
@@ -757,7 +991,9 @@ async function doSearch(queryOverride = null) {
   }
 
   if (query.length < 2) {
+
     resultsBox.innerHTML = "";
+
     return;
   }
 
@@ -772,56 +1008,85 @@ async function doSearch(queryOverride = null) {
   `;
 
   try {
-    const response = await fetch(
-      `/api/yt/search?q=${encodeURIComponent(
-        query
-      )}&limit=12`,
-      {
-        headers: {
-          Accept: "application/json"
-        }
-      }
-    );
 
-    if (requestId !== searchRequestId) {
+    const response =
+      await fetch(
+        `/api/yt/search?q=${encodeURIComponent(
+          query
+        )}&limit=12`,
+        {
+          headers: {
+            Accept:
+              "application/json"
+          }
+        }
+      );
+
+    if (
+      requestId !==
+      searchRequestId
+    ) {
       return;
     }
 
     if (!response.ok) {
+
       throw new Error(
         `Search request failed: ${response.status}`
       );
+
     }
 
-    const data = await response.json();
+    const data =
+      await response.json();
 
-    if (requestId !== searchRequestId) {
+    if (
+      requestId !==
+      searchRequestId
+    ) {
       return;
     }
 
     const results =
       Array.isArray(data)
         ? data
-        : Array.isArray(data.results)
+        : Array.isArray(
+            data.results
+          )
           ? data.results
-          : Array.isArray(data.items)
+          : Array.isArray(
+              data.items
+            )
             ? data.items
             : [];
 
-    renderSearchResults(results);
-  } catch (error) {
-    console.error("Search error:", error);
+    renderSearchResults(
+      results
+    );
 
-    if (requestId !== searchRequestId) {
+  } catch (error) {
+
+    console.error(
+      "Search error:",
+      error
+    );
+
+    if (
+      requestId !==
+      searchRequestId
+    ) {
       return;
     }
 
     resultsBox.innerHTML = `
       <div class="search-state">
         ${icon("alert", 18)}
-        <span>Unable to load results</span>
+        <span>
+          Unable to load results
+        </span>
       </div>
     `;
+
   }
 }
 
@@ -830,12 +1095,17 @@ async function doSearch(queryOverride = null) {
    ========================================================= */
 
 function scheduleLiveSearch() {
-  clearTimeout(searchTimer);
+
+  clearTimeout(
+    searchTimer
+  );
 
   const query =
-    searchPro?.value.trim() || "";
+    searchPro?.value.trim() ||
+    "";
 
   if (!query) {
+
     ++searchRequestId;
 
     if (resultsBox) {
@@ -846,22 +1116,31 @@ function scheduleLiveSearch() {
   }
 
   if (query.length < 2) {
+
     ++searchRequestId;
 
     if (resultsBox) {
+
       resultsBox.innerHTML = `
         <div class="search-state">
-          <span>Type at least 2 characters</span>
+          <span>
+            Type at least 2 characters
+          </span>
         </div>
       `;
+
     }
 
     return;
   }
 
-  searchTimer = setTimeout(() => {
-    doSearch(query);
-  }, 280);
+  searchTimer =
+    setTimeout(
+      () => {
+        doSearch(query);
+      },
+      280
+    );
 }
 
 /* =========================================================
@@ -869,7 +1148,10 @@ function scheduleLiveSearch() {
    ========================================================= */
 
 function clearSearch() {
-  clearTimeout(searchTimer);
+
+  clearTimeout(
+    searchTimer
+  );
 
   ++searchRequestId;
 
@@ -886,16 +1168,25 @@ function clearSearch() {
    RENDER SEARCH RESULTS
    ========================================================= */
 
-function renderSearchResults(results) {
+function renderSearchResults(
+  results
+) {
+
   if (!resultsBox) {
     return;
   }
 
-  if (!Array.isArray(results) || !results.length) {
+  if (
+    !Array.isArray(results) ||
+    !results.length
+  ) {
+
     resultsBox.innerHTML = `
       <div class="search-state">
         ${icon("search", 18)}
-        <span>No songs found</span>
+        <span>
+          No songs found
+        </span>
       </div>
     `;
 
@@ -904,94 +1195,116 @@ function renderSearchResults(results) {
 
   resultsBox.innerHTML = "";
 
-  results.forEach((result) => {
-    const videoId =
-      result.videoId ||
-      result.id?.videoId ||
-      result.id ||
-      "";
+  results.forEach(
+    (result) => {
 
-    if (!videoId) {
-      return;
+      const videoId =
+        result.videoId ||
+        result.id?.videoId ||
+        result.id ||
+        "";
+
+      if (!videoId) {
+        return;
+      }
+
+      const title =
+        result.title ||
+        result.snippet?.title ||
+        "Unknown track";
+
+      const channel =
+        result.channel ||
+        result.channelTitle ||
+        result.snippet?.channelTitle ||
+        "YouTube";
+
+      const thumbnail =
+        result.thumbnail ||
+        result.thumbnails?.medium?.url ||
+        result.thumbnails?.default?.url ||
+        result.snippet?.thumbnails?.medium?.url ||
+        result.snippet?.thumbnails?.default?.url ||
+        `https://i.ytimg.com/vi/${encodeURIComponent(
+          videoId
+        )}/hqdefault.jpg`;
+
+      const track = {
+
+        videoId,
+
+        title,
+
+        channel,
+
+        artist: channel,
+
+        thumbnail
+
+      };
+
+      const item =
+        document.createElement(
+          "div"
+        );
+
+      item.className =
+        "search-result-item";
+
+      item.innerHTML = `
+
+        <img
+          class="result-thumb"
+          src="${escapeHtml(
+            thumbnail
+          )}"
+          alt=""
+          loading="lazy"
+        >
+
+        <div class="search-result-main">
+
+          <span class="search-result-title">
+            ${escapeHtml(title)}
+          </span>
+
+          <span class="search-result-channel">
+            ${escapeHtml(channel)}
+          </span>
+
+        </div>
+
+        <button
+          class="icon-action result-icon result-play"
+          type="button"
+          title="Play"
+          aria-label="Play"
+        >
+          ${icon("play", 17)}
+        </button>
+
+        <button
+          class="icon-action result-icon result-add"
+          type="button"
+          title="Add to playlist"
+          aria-label="Add to playlist"
+        >
+          ${icon("plus", 18)}
+        </button>
+
+      `;
+
+      item.dataset.track =
+        JSON.stringify(
+          track
+        );
+
+      resultsBox.appendChild(
+        item
+      );
+
     }
-
-    const title =
-      result.title ||
-      result.snippet?.title ||
-      "Unknown track";
-
-    const channel =
-      result.channel ||
-      result.channelTitle ||
-      result.snippet?.channelTitle ||
-      "YouTube";
-
-    const thumbnail =
-      result.thumbnail ||
-      result.thumbnails?.medium?.url ||
-      result.thumbnails?.default?.url ||
-      result.snippet?.thumbnails?.medium?.url ||
-      result.snippet?.thumbnails?.default?.url ||
-      `https://i.ytimg.com/vi/${encodeURIComponent(
-        videoId
-      )}/hqdefault.jpg`;
-
-    const track = {
-      videoId,
-      title,
-      channel,
-      artist: channel,
-      thumbnail
-    };
-
-    const item =
-      document.createElement("div");
-
-    item.className =
-      "search-result-item";
-
-    item.innerHTML = `
-      <img
-        class="result-thumb"
-        src="${escapeHtml(thumbnail)}"
-        alt=""
-        loading="lazy"
-      >
-
-      <div class="search-result-main">
-        <span class="search-result-title">
-          ${escapeHtml(title)}
-        </span>
-
-        <span class="search-result-channel">
-          ${escapeHtml(channel)}
-        </span>
-      </div>
-
-      <button
-        class="icon-action result-icon result-play"
-        type="button"
-        title="Play"
-        aria-label="Play"
-      >
-        ${icon("play", 17)}
-      </button>
-
-      <button
-        class="icon-action result-icon result-add"
-        type="button"
-        title="Add to playlist"
-        aria-label="Add to playlist"
-      >
-        ${icon("plus", 18)}
-      </button>
-    `;
-
-    item.dataset.track =
-      JSON.stringify(track);
-
-    resultsBox.appendChild(item);
-  });
+  );
 }
 
 /* =========================================================
@@ -999,6 +1312,7 @@ function renderSearchResults(results) {
    ========================================================= */
 
 if (searchPro) {
+
   searchPro.addEventListener(
     "input",
     scheduleLiveSearch
@@ -1007,32 +1321,52 @@ if (searchPro) {
   searchPro.addEventListener(
     "keydown",
     (event) => {
-      if (event.key === "Enter") {
+
+      if (
+        event.key ===
+        "Enter"
+      ) {
+
         event.preventDefault();
 
-        clearTimeout(searchTimer);
+        clearTimeout(
+          searchTimer
+        );
 
         doSearch(
           searchPro.value.trim()
         );
+
       }
 
-      if (event.key === "Escape") {
+      if (
+        event.key ===
+        "Escape"
+      ) {
+
         clearSearch();
+
       }
+
     }
   );
+
 }
 
 if (btnSearch) {
+
   btnSearch.addEventListener(
     "click",
     () => {
+
       doSearch(
-        searchPro?.value.trim() || ""
+        searchPro?.value.trim() ||
+        ""
       );
+
     }
   );
+
 }
 
 /* =========================================================
@@ -1040,9 +1374,11 @@ if (btnSearch) {
    ========================================================= */
 
 if (resultsBox) {
+
   resultsBox.addEventListener(
     "click",
     (event) => {
+
       const item =
         event.target.closest(
           ".search-result-item"
@@ -1055,12 +1391,17 @@ if (resultsBox) {
       let track;
 
       try {
+
         track =
           JSON.parse(
-            item.dataset.track || "{}"
+            item.dataset.track ||
+            "{}"
           );
+
       } catch {
+
         return;
+
       }
 
       const addButton =
@@ -1074,6 +1415,7 @@ if (resultsBox) {
         );
 
       if (addButton) {
+
         event.stopPropagation();
 
         addToPlaylist(
@@ -1093,6 +1435,7 @@ if (resultsBox) {
           ".result-thumb"
         )
       ) {
+
         event.stopPropagation();
 
         addToPlaylist(
@@ -1107,9 +1450,12 @@ if (resultsBox) {
         );
 
         clearSearch();
+
       }
+
     }
   );
+
 }
 
 /* =========================================================
@@ -1119,13 +1465,15 @@ if (resultsBox) {
 socket.on(
   "stats:update",
   (data = {}) => {
+
     if (!roomId) {
       return;
     }
 
     if (
       data.roomId &&
-      String(data.roomId) !== String(roomId)
+      String(data.roomId) !==
+        String(roomId)
     ) {
       return;
     }
@@ -1140,9 +1488,12 @@ socket.on(
       onlineCount &&
       count !== undefined
     ) {
+
       onlineCount.textContent =
         String(count);
+
     }
+
   }
 );
 
@@ -1153,9 +1504,11 @@ socket.on(
 socket.on(
   "player:trackChanged",
   (data = {}) => {
+
     if (
       data.roomId &&
-      String(data.roomId) !== String(roomId)
+      String(data.roomId) !==
+        String(roomId)
     ) {
       return;
     }
@@ -1164,11 +1517,14 @@ socket.on(
       data.track ||
       data;
 
-    if (!track?.videoId) {
+    if (
+      !track?.videoId
+    ) {
       return;
     }
 
-    currentTrack = track;
+    currentTrack =
+      track;
 
     if (titleEl) {
       titleEl.textContent =
@@ -1189,6 +1545,7 @@ socket.on(
       track.videoId,
       false
     );
+
   }
 );
 
@@ -1199,9 +1556,11 @@ socket.on(
 socket.on(
   "player:sync",
   (data = {}) => {
+
     if (
       data.roomId &&
-      String(data.roomId) !== String(roomId)
+      String(data.roomId) !==
+        String(roomId)
     ) {
       return;
     }
@@ -1210,27 +1569,34 @@ socket.on(
       return;
     }
 
-    isApplyingRemoteState = true;
+    isApplyingRemoteState =
+      true;
 
     try {
+
       if (
         data.track &&
         data.track.videoId
       ) {
+
         currentTrack =
           data.track;
 
         if (titleEl) {
+
           titleEl.textContent =
             data.track.title ||
             "Unknown track";
+
         }
 
         if (artistEl) {
+
           artistEl.textContent =
             data.track.artist ||
             data.track.channel ||
             "YouTube";
+
         }
 
         renderPlaylist();
@@ -1239,6 +1605,7 @@ socket.on(
           data.track.videoId,
           false
         );
+
       }
 
       if (
@@ -1247,49 +1614,69 @@ socket.on(
         typeof data.currentTime ===
           "number"
       ) {
+
         try {
+
           player.seekTo(
             data.currentTime,
             true
           );
+
         } catch {}
+
       }
 
       if (
         playerReady &&
         player
       ) {
+
         if (
-          data.state === "playing"
+          data.state ===
+          "playing"
         ) {
+
           player.playVideo();
+
         } else if (
-          data.state === "paused"
+          data.state ===
+          "paused"
         ) {
+
           player.pauseVideo();
+
         }
+
       }
+
     } catch (error) {
+
       console.error(
         "Remote sync error:",
         error
       );
+
     }
 
-    setTimeout(() => {
-      isApplyingRemoteState =
-        false;
-    }, 500);
+    setTimeout(
+      () => {
+        isApplyingRemoteState =
+          false;
+      },
+      500
+    );
+
   }
 );
 
 /* =========================================================
-   SOCKET — PLAYER STATE CHANGE
+   SOCKET — PLAYER STATE
    ========================================================= */
 
 socket.on(
   "player:stateChange",
   (data = {}) => {
+
     if (
       isApplyingRemoteState
     ) {
@@ -1298,7 +1685,8 @@ socket.on(
 
     if (
       data.roomId &&
-      String(data.roomId) !== String(roomId)
+      String(data.roomId) !==
+        String(roomId)
     ) {
       return;
     }
@@ -1311,18 +1699,27 @@ socket.on(
     }
 
     try {
+
       if (
-        data.state === "playing"
+        data.state ===
+        "playing"
       ) {
+
         player.playVideo();
+
       }
 
       if (
-        data.state === "paused"
+        data.state ===
+        "paused"
       ) {
+
         player.pauseVideo();
+
       }
+
     } catch {}
+
   }
 );
 
@@ -1333,9 +1730,11 @@ socket.on(
 socket.on(
   "player:setTrack",
   (data = {}) => {
+
     if (
       data.roomId &&
-      String(data.roomId) !== String(roomId)
+      String(data.roomId) !==
+        String(roomId)
     ) {
       return;
     }
@@ -1351,16 +1750,20 @@ socket.on(
       data.track;
 
     if (titleEl) {
+
       titleEl.textContent =
         currentTrack.title ||
         "Unknown track";
+
     }
 
     if (artistEl) {
+
       artistEl.textContent =
         currentTrack.artist ||
         currentTrack.channel ||
         "YouTube";
+
     }
 
     renderPlaylist();
@@ -1369,6 +1772,7 @@ socket.on(
       currentTrack.videoId,
       true
     );
+
   }
 );
 
@@ -1376,7 +1780,10 @@ socket.on(
    CHAT
    ========================================================= */
 
-function appendChatMessage(message = {}) {
+function appendChatMessage(
+  message = {}
+) {
+
   if (!chatWindow) {
     return;
   }
@@ -1400,7 +1807,9 @@ function appendChatMessage(message = {}) {
     String(userName);
 
   const wrapper =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   wrapper.className =
     `chat-message ${
@@ -1410,7 +1819,9 @@ function appendChatMessage(message = {}) {
     }`;
 
   wrapper.innerHTML = `
+
     <div class="chat-bubble">
+
       ${
         !own
           ? `
@@ -1424,10 +1835,14 @@ function appendChatMessage(message = {}) {
       <div class="chat-text">
         ${escapeHtml(text)}
       </div>
+
     </div>
+
   `;
 
-  chatWindow.appendChild(wrapper);
+  chatWindow.appendChild(
+    wrapper
+  );
 
   chatWindow.scrollTop =
     chatWindow.scrollHeight;
@@ -1436,9 +1851,11 @@ function appendChatMessage(message = {}) {
 socket.on(
   "chat:new",
   (message = {}) => {
+
     if (
       message.roomId &&
-      String(message.roomId) !== String(roomId)
+      String(message.roomId) !==
+        String(roomId)
     ) {
       return;
     }
@@ -1448,20 +1865,27 @@ socket.on(
     );
 
     if (miniChat) {
+
       miniChat.textContent =
         message.text ||
         message.message ||
         "";
+
     }
+
   }
 );
 
 function sendChat() {
+
   const text =
     msgInput?.value.trim() ||
     "";
 
-  if (!text || !roomId) {
+  if (
+    !text ||
+    !roomId
+  ) {
     return;
   }
 
@@ -1475,31 +1899,44 @@ function sendChat() {
   );
 
   if (msgInput) {
+
     msgInput.value = "";
+
     msgInput.focus();
+
   }
 }
 
 if (btnSend) {
+
   btnSend.addEventListener(
     "click",
     sendChat
   );
+
 }
 
 if (msgInput) {
+
   msgInput.addEventListener(
     "keydown",
     (event) => {
+
       if (
-        event.key === "Enter" &&
+        event.key ===
+          "Enter" &&
         !event.shiftKey
       ) {
+
         event.preventDefault();
+
         sendChat();
+
       }
+
     }
   );
+
 }
 
 /* =========================================================
@@ -1509,6 +1946,7 @@ if (msgInput) {
 socket.on(
   "room:create",
   (data = {}) => {
+
     if (!data.roomId) {
       return;
     }
@@ -1531,26 +1969,34 @@ socket.on(
     );
 
     if (roomBadge) {
+
       roomBadge.textContent =
         `ROOM ${roomId}`;
+
     }
 
     if (roleBadge) {
+
       roleBadge.textContent =
         "HOST";
+
     }
+
   }
 );
 
 socket.on(
   "room:join",
   (data = {}) => {
+
     if (
       data.roomId &&
       String(data.roomId) ===
         String(roomId)
     ) {
+
       if (data.role) {
+
         role =
           data.role;
 
@@ -1562,25 +2008,31 @@ socket.on(
           "beatSyncRole",
           role
         );
+
       }
 
       if (roleBadge) {
+
         roleBadge.textContent =
           host
             ? "HOST"
             : "MEMBER";
+
       }
+
     }
+
   }
 );
 
 /* =========================================================
-   CONNECT / JOIN ROOM
+   SOCKET CONNECT
    ========================================================= */
 
 socket.on(
   "connect",
   () => {
+
     if (!roomId) {
       return;
     }
@@ -1594,6 +2046,7 @@ socket.on(
         create: createFlag
       }
     );
+
   }
 );
 
@@ -1602,84 +2055,117 @@ socket.on(
    ========================================================= */
 
 function setMusicTab() {
+
   if (musicTabBtn) {
+
     musicTabBtn.classList.add(
       "active"
     );
+
   }
 
   if (chatTabBtn) {
+
     chatTabBtn.classList.remove(
       "active"
     );
+
   }
 
   if (mainGrid) {
-    mainGrid.style.display = "";
+
+    mainGrid.style.display =
+      "";
+
   }
 
   if (chatFull) {
+
     chatFull.style.display =
       "none";
+
   }
 
   if (searchWrapper) {
+
     searchWrapper.style.display =
       "";
+
   }
 
   if (chatMini) {
+
     chatMini.style.display =
       "";
+
   }
+
 }
 
 function setChatTab() {
+
   if (chatTabBtn) {
+
     chatTabBtn.classList.add(
       "active"
     );
+
   }
 
   if (musicTabBtn) {
+
     musicTabBtn.classList.remove(
       "active"
     );
+
   }
 
   if (mainGrid) {
+
     mainGrid.style.display =
       "none";
+
   }
 
   if (chatFull) {
+
     chatFull.style.display =
       "";
+
   }
 
   if (searchWrapper) {
+
     searchWrapper.style.display =
       "none";
+
   }
 
   if (chatMini) {
+
     chatMini.style.display =
       "none";
+
   }
+
 }
 
 if (musicTabBtn) {
+
   musicTabBtn.addEventListener(
     "click",
     setMusicTab
   );
+
 }
 
 if (chatTabBtn) {
+
   chatTabBtn.addEventListener(
     "click",
     setChatTab
   );
+
 }
 
 /* =========================================================
@@ -1687,10 +2173,13 @@ if (chatTabBtn) {
    ========================================================= */
 
 if (btnLeave) {
+
   btnLeave.addEventListener(
     "click",
     () => {
+
       try {
+
         socket.emit(
           "room:leave",
           {
@@ -1698,6 +2187,7 @@ if (btnLeave) {
             userName
           }
         );
+
       } catch {}
 
       localStorage.removeItem(
@@ -1710,66 +2200,85 @@ if (btnLeave) {
 
       window.location.href =
         "/";
+
     }
   );
+
 }
 
 /* =========================================================
    HEARTBEAT / PLAYER SYNC
    ========================================================= */
 
-setInterval(() => {
-  if (
-    !roomId ||
-    !host ||
-    !playerReady ||
-    !player ||
-    isApplyingRemoteState
-  ) {
-    return;
-  }
+setInterval(
+  () => {
 
-  try {
-    const state =
-      player.getPlayerState();
+    if (
+      !roomId ||
+      !host ||
+      !playerReady ||
+      !player ||
+      isApplyingRemoteState
+    ) {
+      return;
+    }
 
-    const currentTime =
-      player.getCurrentTime();
+    try {
 
-    socket.emit(
-      "player:sync",
-      {
-        roomId,
-        state:
-          state === 1
-            ? "playing"
-            : "paused",
-        currentTime,
-        track:
-          currentTrack || null
-      }
-    );
-  } catch {}
-}, 1000);
+      const state =
+        player.getPlayerState();
+
+      const currentTime =
+        player.getCurrentTime();
+
+      socket.emit(
+        "player:sync",
+        {
+          roomId,
+
+          state:
+            state === 1
+              ? "playing"
+              : "paused",
+
+          currentTime,
+
+          track:
+            currentTrack ||
+            null
+        }
+      );
+
+    } catch {}
+
+  },
+  1000
+);
 
 /* =========================================================
    AUTO NEXT TRACK
    ========================================================= */
 
 function playNextTrack() {
-  if (!host || !playlist.length) {
+
+  if (
+    !host ||
+    !playlist.length
+  ) {
     return;
   }
 
   let currentIndex = -1;
 
   if (currentTrack) {
+
     currentIndex =
       playlist.findIndex(
         item =>
           item.videoId ===
           currentTrack.videoId
       );
+
   }
 
   const nextIndex =
@@ -1778,7 +2287,8 @@ function playNextTrack() {
       : 0;
 
   if (
-    nextIndex >= playlist.length
+    nextIndex >=
+    playlist.length
   ) {
     return;
   }
@@ -1797,6 +2307,7 @@ function playNextTrack() {
 function onYouTubePlayerStateChange(
   event
 ) {
+
   if (!player) {
     return;
   }
@@ -1805,10 +2316,12 @@ function onYouTubePlayerStateChange(
     event.data ===
     YT.PlayerState.PLAYING
   ) {
+
     if (
       host &&
       !isApplyingRemoteState
     ) {
+
       socket.emit(
         "player:stateChange",
         {
@@ -1816,17 +2329,21 @@ function onYouTubePlayerStateChange(
           state: "playing"
         }
       );
+
     }
+
   }
 
   if (
     event.data ===
     YT.PlayerState.PAUSED
   ) {
+
     if (
       host &&
       !isApplyingRemoteState
     ) {
+
       socket.emit(
         "player:stateChange",
         {
@@ -1834,17 +2351,24 @@ function onYouTubePlayerStateChange(
           state: "paused"
         }
       );
+
     }
+
   }
 
   if (
     event.data ===
     YT.PlayerState.ENDED
   ) {
+
     if (host) {
+
       playNextTrack();
+
     }
+
   }
+
 }
 
 /* =========================================================
@@ -1852,6 +2376,7 @@ function onYouTubePlayerStateChange(
    ========================================================= */
 
 function onYouTubeIframeAPIReady() {
+
   if (!ytPlayer) {
     return;
   }
@@ -1860,43 +2385,65 @@ function onYouTubeIframeAPIReady() {
     new YT.Player(
       ytPlayer,
       {
+
         width: "100%",
+
         height: "100%",
+
         videoId: "",
+
         playerVars: {
+
           autoplay: 0,
+
           controls: 1,
+
           rel: 0,
+
           modestbranding: 1,
+
           playsinline: 1
+
         },
+
         events: {
+
           onReady: () => {
-            playerReady = true;
+
+            playerReady =
+              true;
 
             if (
               currentTrack &&
               currentTrack.videoId
             ) {
+
               loadYouTubeVideo(
                 currentTrack.videoId,
                 pendingPlay
               );
+
             }
+
           },
 
           onStateChange:
             onYouTubePlayerStateChange,
 
           onError: (event) => {
+
             console.warn(
               "YouTube player error:",
               event?.data
             );
+
           }
+
         }
+
       }
     );
+
 }
 
 /* =========================================================
@@ -1913,7 +2460,9 @@ window.onYouTubeIframeAPIReady =
 renderPlaylist();
 
 if (!roomId) {
+
   console.warn(
     "BeatSync: No room ID found."
   );
+
 }
