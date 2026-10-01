@@ -1,13 +1,19 @@
 /* =========================================================
    BeatSync — player.js
-   Complete production replacement
+   Complete Mobile Performance Optimized Version
    ========================================================= */
+
+'use strict';
+
+/* =========================================================
+   SOCKET
+========================================================= */
 
 const socket = io();
 
-/* ---------------------------------------------------------
-   Helpers
---------------------------------------------------------- */
+/* =========================================================
+   HELPERS
+========================================================= */
 
 function qs(param) {
   const url = new URL(window.location.href);
@@ -34,90 +40,421 @@ function niceTime(seconds) {
   const minutes = Math.floor(seconds / 60);
   const remaining = Math.floor(seconds % 60);
 
-  return `${String(minutes).padStart(2, '0')}:${String(remaining).padStart(2, '0')}`;
+  return (
+    String(minutes).padStart(2, '0') +
+    ':' +
+    String(remaining).padStart(2, '0')
+  );
 }
 
-/* ---------------------------------------------------------
+/* =========================================================
+   DISABLE PAGE ZOOM
+========================================================= */
+
+/*
+   Add/update viewport dynamically so this also works if the
+   HTML file does not currently contain the correct viewport.
+*/
+
+(function configureViewport() {
+  let viewport = document.querySelector(
+    'meta[name="viewport"]'
+  );
+
+  if (!viewport) {
+    viewport = document.createElement('meta');
+    viewport.name = 'viewport';
+    document.head.appendChild(viewport);
+  }
+
+  viewport.setAttribute(
+    'content',
+    'width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover'
+  );
+})();
+
+/*
+   Prevent pinch zoom on browsers that expose gesture events.
+*/
+
+document.addEventListener(
+  'gesturestart',
+  (event) => {
+    event.preventDefault();
+  },
+  { passive: false }
+);
+
+document.addEventListener(
+  'gesturechange',
+  (event) => {
+    event.preventDefault();
+  },
+  { passive: false }
+);
+
+document.addEventListener(
+  'gestureend',
+  (event) => {
+    event.preventDefault();
+  },
+  { passive: false }
+);
+
+/*
+   Prevent multi-touch pinch zoom on Android/iOS.
+
+   Normal one-finger scrolling remains enabled.
+*/
+
+document.addEventListener(
+  'touchmove',
+  (event) => {
+    if (event.touches && event.touches.length > 1) {
+      event.preventDefault();
+    }
+  },
+  { passive: false }
+);
+
+/*
+   Prevent double-tap zoom without breaking normal clicks.
+*/
+
+let lastTouchTime = 0;
+
+document.addEventListener(
+  'touchend',
+  (event) => {
+    const now = Date.now();
+
+    if (now - lastTouchTime < 280) {
+      event.preventDefault();
+    }
+
+    lastTouchTime = now;
+  },
+  { passive: false }
+);
+
+/* =========================================================
+   PERFORMANCE CSS
+========================================================= */
+
+(function injectPerformanceStyles() {
+  if (document.getElementById(
+    'beatsync-performance-style'
+  )) {
+    return;
+  }
+
+  const style = document.createElement('style');
+
+  style.id =
+    'beatsync-performance-style';
+
+  style.textContent = `
+    /*
+       Mobile performance mode.
+
+       Heavy blur/backdrop-filter is one of the biggest GPU
+       costs on low/mid-range Android devices.
+    */
+
+    @media (max-width: 768px) {
+
+      html,
+      body {
+        max-width: 100%;
+        overflow-x: hidden;
+        overscroll-behavior-x: none;
+        touch-action: pan-y;
+      }
+
+      *,
+      *::before,
+      *::after {
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      button,
+      a,
+      input,
+      textarea,
+      select {
+        touch-action: manipulation;
+      }
+
+      /*
+         Disable expensive backdrop blur on mobile.
+      */
+
+      .backdrop-blur,
+      .backdrop-blur-sm,
+      .backdrop-blur-md,
+      .backdrop-blur-lg,
+      .backdrop-blur-xl,
+      .backdrop-blur-2xl,
+      .backdrop-blur-3xl {
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
+      }
+
+      /*
+         Reduce expensive shadows on mobile.
+      */
+
+      .shadow-2xl {
+        box-shadow:
+          0 8px 24px rgba(0, 0, 0, 0.28) !important;
+      }
+
+      .shadow-xl {
+        box-shadow:
+          0 6px 20px rgba(0, 0, 0, 0.25) !important;
+      }
+
+      /*
+         Avoid continuous GPU compositing on every element.
+      */
+
+      img {
+        content-visibility: auto;
+      }
+
+      /*
+         Smooth scrolling only where it is useful.
+      */
+
+      #chatWindow,
+      #playlistBox,
+      #resultsBox {
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+      }
+
+      /*
+         Search results.
+      */
+
+      #searchWrapper.beatsync-mobile-search-host {
+        position: relative !important;
+        z-index: 5000 !important;
+      }
+
+      #searchWrapper.beatsync-mobile-search-host #resultsBox {
+        position: absolute !important;
+        left: 0 !important;
+        right: 0 !important;
+        top: calc(100% + 8px) !important;
+        width: 100% !important;
+
+        max-height: 55vh !important;
+
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+
+        z-index: 5000 !important;
+
+        background: rgba(15, 23, 42, 0.98);
+
+        border-radius: 16px;
+
+        border: 1px solid
+          rgba(255, 255, 255, 0.08);
+
+        box-shadow:
+          0 12px 30px
+          rgba(0, 0, 0, 0.35);
+
+        /*
+           Intentionally no backdrop-filter.
+        */
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+      }
+
+      /*
+         Reduce animated transforms on mobile.
+      */
+
+      .beatsync-search-result,
+      .beatsync-playlist-item {
+        transform: translateZ(0);
+      }
+
+      /*
+         Prevent accidental horizontal layout overflow.
+      */
+
+      #mainGrid,
+      main,
+      section,
+      aside {
+        max-width: 100%;
+      }
+
+      /*
+         YouTube iframe.
+      */
+
+      #ytPlayer,
+      #ytPlayer iframe {
+        max-width: 100%;
+      }
+    }
+
+    /*
+       General touch optimization.
+    */
+
+    button,
+    [role="button"] {
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    input,
+    textarea {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+  `;
+
+  document.head.appendChild(style);
+})();
+
+/* =========================================================
    DOM
---------------------------------------------------------- */
+========================================================= */
 
-const roomBadge = el('roomBadge');
-const roleBadge = el('roleBadge');
-const onlineCount = el('onlineCount');
-const btnLeave = el('btnLeave');
+const roomBadge =
+  el('roomBadge');
 
-const searchWrapper = el('searchWrapper');
-const searchPro = el('searchPro');
-const btnSearch = el('btnSearch');
-const resultsBox = el('resultsBox');
+const roleBadge =
+  el('roleBadge');
+
+const onlineCount =
+  el('onlineCount');
+
+const btnLeave =
+  el('btnLeave');
+
+const searchWrapper =
+  el('searchWrapper');
+
+const searchPro =
+  el('searchPro');
+
+const btnSearch =
+  el('btnSearch');
+
+const resultsBox =
+  el('resultsBox');
 
 const musicSection =
   el('musicSection') ||
-  el('mainGrid') ||
-  document.querySelector('.music-column');
+  document.querySelector('.music-column') ||
+  el('mainGrid');
 
-const mainGrid = el('mainGrid');
+const mainGrid =
+  el('mainGrid');
 
-const chatFull = el('chatFull');
-const chatWindow = el('chatWindow');
+const chatFull =
+  el('chatFull');
 
-const msgInput = el('msgInput');
-const btnSend = el('btnSend');
+const chatWindow =
+  el('chatWindow');
 
-const musicTabBtn = el('musicTabBtn');
-const chatTabBtn = el('chatTabBtn');
+const msgInput =
+  el('msgInput');
 
-const playlistBox = el('playlistBox');
+const btnSend =
+  el('btnSend');
 
-const playBig = el('playBig');
-const prevBtn = el('prev');
-const nextBtn = el('next');
+const musicTabBtn =
+  el('musicTabBtn');
 
-const titleEl = el('title');
-const artistEl = el('artist');
-const coverEl = el('cover');
+const chatTabBtn =
+  el('chatTabBtn');
 
-const seek = el('seek');
-const curT = el('curT');
-const durT = el('durT');
+const playlistBox =
+  el('playlistBox');
 
-/* ---------------------------------------------------------
-   URL / ROOM STATE
---------------------------------------------------------- */
+const playBig =
+  el('playBig');
 
-let currentRoom = qs('room') || null;
+const prevBtn =
+  el('prev');
 
-let role = (qs('role') || 'GUEST').toUpperCase();
+const nextBtn =
+  el('next');
+
+const titleEl =
+  el('title');
+
+const artistEl =
+  el('artist');
+
+const coverEl =
+  el('cover');
+
+const seek =
+  el('seek');
+
+const curT =
+  el('curT');
+
+const durT =
+  el('durT');
+
+/* =========================================================
+   ROOM STATE
+========================================================= */
+
+let currentRoom =
+  qs('room') || null;
+
+let role =
+  (qs('role') || 'GUEST')
+    .toUpperCase();
 
 let name = '';
 
 try {
-  name = decodeURIComponent(qs('name') || 'guest');
-} catch (e) {
-  name = qs('name') || 'guest';
+  name =
+    decodeURIComponent(
+      qs('name') || 'guest'
+    );
+} catch (error) {
+  name =
+    qs('name') || 'guest';
 }
 
 let createFlag =
   qs('create') === '1' ||
   qs('create') === 'true';
 
-let isHost = role === 'HOST';
+let isHost =
+  role === 'HOST';
 
-/* ---------------------------------------------------------
-   Initial UI
---------------------------------------------------------- */
+/* =========================================================
+   INITIAL UI
+========================================================= */
 
 if (roomBadge) {
-  roomBadge.textContent = currentRoom || '—';
+  roomBadge.textContent =
+    currentRoom || '—';
 }
 
 if (roleBadge) {
-  roleBadge.textContent = role;
+  roleBadge.textContent =
+    role;
 }
 
-/* ---------------------------------------------------------
-   Player State
---------------------------------------------------------- */
+/* =========================================================
+   PLAYER STATE
+========================================================= */
 
 let playlist = [];
 
@@ -127,56 +464,75 @@ let ytPlayer = null;
 
 let ytReady = false;
 
-let waitingForReady = null;
-
 let youtubeApiReady = false;
+
+let waitingForReady = null;
 
 let searchRequestId = 0;
 
 let searchTimer = null;
 
-let searchOriginalParent = null;
-
-let searchOriginalNextSibling = null;
-
 let searchPlaceholder = null;
 
 /*
-   Drift threshold in seconds.
-
-   Small differences are ignored.
-   Larger differences are corrected.
+   Original search-results location.
 */
-const DRIFT_SEEK_THRESHOLD = 0.6;
+
+let searchOriginalParent = null;
+
+/* =========================================================
+   CONSTANTS
+========================================================= */
+
+const DRIFT_SEEK_THRESHOLD =
+  0.75;
+
+const HEARTBEAT_INTERVAL_MS =
+  4000;
 
 /*
-   Host periodically sends the current playback state.
+   UI timer doesn't need 500ms on mobile.
+
+   750ms gives a noticeably lower repaint rate while keeping
+   the progress display smooth enough.
 */
-const HEARTBEAT_INTERVAL_MS = 4000;
 
-/* ---------------------------------------------------------
-   Mobile Search Result Placement
---------------------------------------------------------- */
+const PLAYER_UI_INTERVAL_MS =
+  750;
 
-/*
-   The existing HTML places #resultsBox outside #searchWrapper.
+/* =========================================================
+   MOBILE DETECTION
+========================================================= */
 
-   On mobile we temporarily move it inside #searchWrapper so
-   the results can appear directly underneath the search bar.
+function isMobileDevice() {
+  return (
+    window.innerWidth <= 768 ||
+    window.matchMedia(
+      '(pointer: coarse)'
+    ).matches
+  );
+}
 
-   On desktop we restore it to its original location.
-*/
+/* =========================================================
+   SEARCH RESULT PLACEMENT
+========================================================= */
 
 function setupSearchResultPlacement() {
-  if (!resultsBox || !searchWrapper) return;
+  if (
+    !resultsBox ||
+    !searchWrapper
+  ) {
+    return;
+  }
 
   if (!searchPlaceholder) {
-    searchOriginalParent = resultsBox.parentNode;
-    searchOriginalNextSibling = resultsBox.nextSibling;
+    searchOriginalParent =
+      resultsBox.parentNode;
 
-    searchPlaceholder = document.createComment(
-      'BeatSync search results placeholder'
-    );
+    searchPlaceholder =
+      document.createComment(
+        'BeatSync search results'
+      );
 
     if (searchOriginalParent) {
       searchOriginalParent.insertBefore(
@@ -190,129 +546,149 @@ function setupSearchResultPlacement() {
 }
 
 function syncSearchResultPlacement() {
-  if (!resultsBox || !searchWrapper || !searchPlaceholder) {
+  if (
+    !resultsBox ||
+    !searchWrapper ||
+    !searchPlaceholder
+  ) {
     return;
   }
 
-  const isMobile = window.innerWidth <= 768;
+  const mobile =
+    isMobileDevice();
 
-  if (isMobile) {
-    if (!searchWrapper.contains(resultsBox)) {
-      searchWrapper.appendChild(resultsBox);
-    }
-
-    searchWrapper.classList.add('beatsync-mobile-search-host');
-
-    resultsBox.style.position = 'absolute';
-    resultsBox.style.left = '0';
-    resultsBox.style.right = '0';
-    resultsBox.style.top = 'calc(100% + 8px)';
-    resultsBox.style.width = '100%';
-    resultsBox.style.maxHeight = '58vh';
-    resultsBox.style.overflowY = 'auto';
-    resultsBox.style.zIndex = '5000';
-    resultsBox.style.webkitOverflowScrolling = 'touch';
-  } else {
-    if (!searchPlaceholder.parentNode) {
-      return;
-    }
-
-    if (resultsBox.parentNode !== searchPlaceholder.parentNode) {
-      searchPlaceholder.parentNode.insertBefore(
-        resultsBox,
-        searchPlaceholder.nextSibling
+  if (mobile) {
+    if (
+      !searchWrapper.contains(
+        resultsBox
+      )
+    ) {
+      searchWrapper.appendChild(
+        resultsBox
       );
     }
 
-    searchWrapper.classList.remove('beatsync-mobile-search-host');
+    searchWrapper.classList.add(
+      'beatsync-mobile-search-host'
+    );
 
-    resultsBox.style.position = '';
-    resultsBox.style.left = '';
-    resultsBox.style.right = '';
-    resultsBox.style.top = '';
-    resultsBox.style.width = '';
-    resultsBox.style.maxHeight = '';
-    resultsBox.style.overflowY = '';
-    resultsBox.style.zIndex = '';
-    resultsBox.style.webkitOverflowScrolling = '';
+    resultsBox.style.position =
+      'absolute';
+
+    resultsBox.style.left =
+      '0';
+
+    resultsBox.style.right =
+      '0';
+
+    resultsBox.style.top =
+      'calc(100% + 8px)';
+
+    resultsBox.style.width =
+      '100%';
+
+    resultsBox.style.maxHeight =
+      '55vh';
+
+    resultsBox.style.overflowY =
+      'auto';
+
+    resultsBox.style.zIndex =
+      '5000';
+
+    resultsBox.style.webkitOverflowScrolling =
+      'touch';
+
+  } else {
+    if (
+      searchPlaceholder.parentNode
+    ) {
+      if (
+        resultsBox.parentNode !==
+        searchPlaceholder.parentNode
+      ) {
+        searchPlaceholder.parentNode.insertBefore(
+          resultsBox,
+          searchPlaceholder.nextSibling
+        );
+      }
+    }
+
+    searchWrapper.classList.remove(
+      'beatsync-mobile-search-host'
+    );
+
+    resultsBox.style.position =
+      '';
+
+    resultsBox.style.left =
+      '';
+
+    resultsBox.style.right =
+      '';
+
+    resultsBox.style.top =
+      '';
+
+    resultsBox.style.width =
+      '';
+
+    resultsBox.style.maxHeight =
+      '';
+
+    resultsBox.style.overflowY =
+      '';
+
+    resultsBox.style.zIndex =
+      '';
+
+    resultsBox.style.webkitOverflowScrolling =
+      '';
   }
 }
 
 if (searchWrapper) {
-  searchWrapper.style.position = 'relative';
+  searchWrapper.style.position =
+    'relative';
 }
 
 setupSearchResultPlacement();
 
+/* =========================================================
+   THROTTLED RESIZE
+========================================================= */
+
+let resizeFrame = 0;
+
 window.addEventListener(
   'resize',
-  syncSearchResultPlacement,
+  () => {
+    if (resizeFrame) {
+      return;
+    }
+
+    resizeFrame =
+      requestAnimationFrame(
+        () => {
+          resizeFrame = 0;
+
+          syncSearchResultPlacement();
+        }
+      );
+  },
   { passive: true }
 );
 
-/* ---------------------------------------------------------
-   Mobile Search Styling
---------------------------------------------------------- */
-
-(function injectMobileSearchStyles() {
-  const style = document.createElement('style');
-
-  style.id = 'beatsync-mobile-search-styles';
-
-  style.textContent = `
-    #searchWrapper.beatsync-mobile-search-host {
-      position: relative !important;
-      z-index: 5000 !important;
-    }
-
-    #searchWrapper.beatsync-mobile-search-host #resultsBox {
-      background: rgba(15, 23, 42, 0.97);
-      border: 1px solid rgba(255,255,255,0.10);
-      border-radius: 16px;
-      padding: 8px;
-      box-shadow:
-        0 18px 45px rgba(0,0,0,0.45),
-        0 0 0 1px rgba(255,255,255,0.03);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-    }
-
-    #searchWrapper.beatsync-mobile-search-host #resultsBox > * {
-      touch-action: manipulation;
-    }
-
-    #searchWrapper.beatsync-mobile-search-host #resultsBox button {
-      touch-action: manipulation;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    #searchWrapper.beatsync-mobile-search-host .beatsync-search-result {
-      min-height: 64px;
-    }
-
-    @media (max-width: 768px) {
-      #searchWrapper {
-        position: relative !important;
-        z-index: 5000 !important;
-      }
-    }
-  `;
-
-  document.head.appendChild(style);
-})();
-
-/* ---------------------------------------------------------
-   YouTube Player
---------------------------------------------------------- */
+/* =========================================================
+   YOUTUBE PLAYER
+========================================================= */
 
 /*
-   Important Android fix:
+   The iframe is initialized as soon as the YouTube API is
+   ready.
 
-   We initialize the YouTube iframe as soon as the YouTube API
-   becomes ready instead of waiting until a song is selected.
-
-   This prevents the first user tap from being lost because
-   the iframe itself was still being created.
+   This is important for Android because creating the iframe
+   only after a tap can lose the user-gesture playback window.
 */
 
 function createYTPlayer(videoId = '') {
@@ -320,7 +696,11 @@ function createYTPlayer(videoId = '') {
     return;
   }
 
-  if (!youtubeApiReady || typeof YT === 'undefined' || !YT.Player) {
+  if (
+    !youtubeApiReady ||
+    typeof YT === 'undefined' ||
+    !YT.Player
+  ) {
     return;
   }
 
@@ -342,9 +722,11 @@ function createYTPlayer(videoId = '') {
         ytReady = true;
 
         if (waitingForReady) {
-          const callback = waitingForReady;
+          const callback =
+            waitingForReady;
 
-          waitingForReady = null;
+          waitingForReady =
+            null;
 
           try {
             callback(event);
@@ -357,35 +739,32 @@ function createYTPlayer(videoId = '') {
         }
       },
 
-      onStateChange: onPlayerStateChange,
+      onStateChange:
+        onPlayerStateChange,
 
       onError: (event) => {
         console.warn(
-          'YouTube player error:',
-          event && event.data
+          'YouTube error:',
+          event?.data
         );
       }
     }
   };
 
-  /*
-     Only provide videoId when one actually exists.
-
-     This lets the iframe initialize before the first Android
-     playback gesture.
-  */
   if (videoId) {
-    config.videoId = videoId;
+    config.videoId =
+      videoId;
   }
 
   try {
-    ytPlayer = new YT.Player(
-      'ytPlayer',
-      config
-    );
+    ytPlayer =
+      new YT.Player(
+        'ytPlayer',
+        config
+      );
   } catch (error) {
     console.error(
-      'Unable to create YouTube player:',
+      'YouTube player creation failed:',
       error
     );
 
@@ -394,48 +773,52 @@ function createYTPlayer(videoId = '') {
   }
 }
 
-/* ---------------------------------------------------------
-   Load Video For Guest
---------------------------------------------------------- */
+/* =========================================================
+   LOAD VIDEO — GUEST
+========================================================= */
 
 function loadForGuest(
   videoId,
   startAt = 0,
   autoplay = false
 ) {
-  if (!videoId) return;
+  if (!videoId) {
+    return;
+  }
 
-  const performLoad = () => {
-    if (!ytPlayer) return;
-
-    try {
-      ytPlayer.loadVideoById({
-        videoId: videoId,
-        startSeconds: Math.max(
-          0,
-          Number(startAt) || 0
-        )
-      });
-
-      /*
-         Do not use .catch() here.
-
-         YouTube IFrame API playVideo() does not return a
-         Promise, so .catch() causes errors on mobile browsers.
-      */
-      if (autoplay) {
-        ytPlayer.playVideo();
+  const performLoad =
+    () => {
+      if (!ytPlayer) {
+        return;
       }
-    } catch (error) {
-      console.warn(
-        'Guest video load failed:',
-        error
-      );
-    }
-  };
 
-  if (!ytReady || !ytPlayer) {
-    waitingForReady = performLoad;
+      try {
+        ytPlayer.loadVideoById({
+          videoId,
+          startSeconds:
+            Math.max(
+              0,
+              Number(startAt) || 0
+            )
+        });
+
+        if (autoplay) {
+          ytPlayer.playVideo();
+        }
+      } catch (error) {
+        console.warn(
+          'Guest video load error:',
+          error
+        );
+      }
+    };
+
+  if (
+    !ytReady ||
+    !ytPlayer
+  ) {
+    waitingForReady =
+      performLoad;
 
     if (!ytPlayer) {
       createYTPlayer();
@@ -447,47 +830,60 @@ function loadForGuest(
   performLoad();
 }
 
-/* ---------------------------------------------------------
-   Load Video For Host
---------------------------------------------------------- */
+/* =========================================================
+   LOAD VIDEO — HOST
+========================================================= */
 
 function hostLoad(
   videoId,
   startAt = 0,
   autoplay = false
 ) {
-  if (!videoId) return;
+  if (!videoId) {
+    return;
+  }
 
-  const performLoad = () => {
-    if (!ytPlayer) return;
-
-    try {
-      ytPlayer.loadVideoById({
-        videoId: videoId,
-        startSeconds: Math.max(
-          0,
-          Number(startAt) || 0
-        )
-      });
-
-      /*
-         Calling playVideo() directly here is important for
-         mobile playback when this function originates from
-         the user's tap/click.
-      */
-      if (autoplay) {
-        ytPlayer.playVideo();
+  const performLoad =
+    () => {
+      if (!ytPlayer) {
+        return;
       }
-    } catch (error) {
-      console.warn(
-        'Host video load failed:',
-        error
-      );
-    }
-  };
 
-  if (!ytReady || !ytPlayer) {
-    waitingForReady = performLoad;
+      try {
+        ytPlayer.loadVideoById({
+          videoId,
+          startSeconds:
+            Math.max(
+              0,
+              Number(startAt) || 0
+            )
+        });
+
+        /*
+           Direct call.
+
+           Do NOT use:
+           playVideo().catch(...)
+        */
+
+        if (autoplay) {
+          ytPlayer.playVideo();
+        }
+
+      } catch (error) {
+        console.warn(
+          'Host video load error:',
+          error
+        );
+      }
+    };
+
+  if (
+    !ytReady ||
+    !ytPlayer
+  ) {
+    waitingForReady =
+      performLoad;
 
     if (!ytPlayer) {
       createYTPlayer();
@@ -499,12 +895,14 @@ function hostLoad(
   performLoad();
 }
 
-/* ---------------------------------------------------------
-   Update Track Information
---------------------------------------------------------- */
+/* =========================================================
+   TRACK INFO
+========================================================= */
 
 function setTrackInfo(track) {
-  if (!track) return;
+  if (!track) {
+    return;
+  }
 
   if (titleEl) {
     titleEl.textContent =
@@ -519,103 +917,137 @@ function setTrackInfo(track) {
       '';
   }
 
-  if (coverEl && track.thumbnail) {
-    coverEl.src = track.thumbnail;
+  if (
+    coverEl &&
+    track.thumbnail
+  ) {
+    /*
+       Lazy image update.
+    */
+
+    if (
+      coverEl.src !==
+      track.thumbnail
+    ) {
+      coverEl.src =
+        track.thumbnail;
+    }
   }
 }
 
-/* ---------------------------------------------------------
-   Host Player State
---------------------------------------------------------- */
+/* =========================================================
+   PLAYER STATE CHANGE
+========================================================= */
 
-function onPlayerStateChange(event) {
-  const state = event && event.data;
+function onPlayerStateChange(
+  event
+) {
+  if (!isHost) {
+    return;
+  }
 
-  /*
-     Only host controls the shared room state.
-  */
-  if (!isHost) return;
+  if (!ytPlayer) {
+    return;
+  }
 
-  if (!ytPlayer) return;
+  const state =
+    event?.data;
 
   let currentTime = 0;
 
   try {
     currentTime =
-      ytPlayer.getCurrentTime() || 0;
+      ytPlayer.getCurrentTime() ||
+      0;
   } catch (error) {
     currentTime = 0;
   }
 
-  /*
-     PLAYING
-  */
-
   if (
     typeof YT !== 'undefined' &&
-    state === YT.PlayerState.PLAYING
+    state ===
+      YT.PlayerState.PLAYING
   ) {
     socket.emit(
       'player:stateChange',
       {
-        roomId: currentRoom,
-        isPlaying: true,
-        currentTime: Math.floor(currentTime)
+        roomId:
+          currentRoom,
+
+        isPlaying:
+          true,
+
+        currentTime:
+          Math.floor(
+            currentTime
+          )
       }
     );
 
     return;
   }
 
-  /*
-     PAUSED
-  */
-
   if (
     typeof YT !== 'undefined' &&
-    state === YT.PlayerState.PAUSED
+    state ===
+      YT.PlayerState.PAUSED
   ) {
     socket.emit(
       'player:stateChange',
       {
-        roomId: currentRoom,
-        isPlaying: false,
-        currentTime: Math.floor(currentTime)
+        roomId:
+          currentRoom,
+
+        isPlaying:
+          false,
+
+        currentTime:
+          Math.floor(
+            currentTime
+          )
       }
     );
 
     return;
   }
 
-  /*
-     ENDED
-
-     Automatically move to the next playlist item.
-  */
-
   if (
     typeof YT !== 'undefined' &&
-    state === YT.PlayerState.ENDED
+    state ===
+      YT.PlayerState.ENDED
   ) {
     socket.emit(
       'player:stateChange',
       {
-        roomId: currentRoom,
-        isPlaying: false,
-        currentTime: Math.floor(currentTime)
+        roomId:
+          currentRoom,
+
+        isPlaying:
+          false,
+
+        currentTime:
+          Math.floor(
+            currentTime
+          )
       }
     );
+
+    /*
+       Playlist auto-next.
+    */
 
     if (
       playlist.length > 0 &&
       currentIndex >= 0 &&
-      currentIndex < playlist.length - 1
+      currentIndex <
+        playlist.length - 1
     ) {
-      const nextIndex = currentIndex + 1;
+      currentIndex++;
 
-      currentIndex = nextIndex;
-
-      const nextTrack = playlist[currentIndex];
+      const nextTrack =
+        playlist[
+          currentIndex
+        ];
 
       if (nextTrack) {
         hostLoad(
@@ -624,16 +1056,22 @@ function onPlayerStateChange(event) {
           true
         );
 
-        setTrackInfo(nextTrack);
+        setTrackInfo(
+          nextTrack
+        );
 
         socket.emit(
           'player:setTrack',
           {
-            roomId: currentRoom,
+            roomId:
+              currentRoom,
 
             track: {
-              type: 'youtube',
-              id: nextTrack.id
+              type:
+                'youtube',
+
+              id:
+                nextTrack.id
             }
           }
         );
@@ -644,50 +1082,74 @@ function onPlayerStateChange(event) {
   }
 }
 
-/* ---------------------------------------------------------
-   Player Time UI
---------------------------------------------------------- */
+/* =========================================================
+   PLAYER UI TIMER
+========================================================= */
 
-setInterval(() => {
-  if (!ytPlayer || !ytReady) {
-    return;
-  }
+/*
+   Reduced from 500ms to 750ms to lower mobile repaint cost.
+*/
 
-  try {
-    const duration =
-      ytPlayer.getDuration() || 0;
+setInterval(
+  () => {
+    if (
+      !ytPlayer ||
+      !ytReady
+    ) {
+      return;
+    }
 
-    const current =
-      ytPlayer.getCurrentTime() || 0;
+    try {
+      const duration =
+        ytPlayer.getDuration() ||
+        0;
 
-    if (duration) {
+      const current =
+        ytPlayer.getCurrentTime() ||
+        0;
+
+      if (!duration) {
+        return;
+      }
+
       if (seek) {
         seek.value =
-          Math.floor(
-            (current / duration) * 100
+          String(
+            Math.floor(
+              (
+                current /
+                duration
+              ) * 100
+            )
           );
       }
 
       if (curT) {
         curT.textContent =
-          niceTime(current);
+          niceTime(
+            current
+          );
       }
 
       if (durT) {
         durT.textContent =
-          niceTime(duration);
+          niceTime(
+            duration
+          );
       }
-    }
-  } catch (error) {
-    /*
-       Ignore transient iframe state errors.
-    */
-  }
-}, 500);
 
-/* ---------------------------------------------------------
-   Playlist Rendering
---------------------------------------------------------- */
+    } catch (error) {
+      /*
+         Ignore transient iframe errors.
+      */
+    }
+  },
+  PLAYER_UI_INTERVAL_MS
+);
+
+/* =========================================================
+   PLAYLIST
+========================================================= */
 
 function renderPlaylist() {
   if (!playlistBox) {
@@ -695,135 +1157,161 @@ function renderPlaylist() {
   }
 
   if (!playlist.length) {
-    playlistBox.innerHTML = `
-      <div class="text-slate-500 text-sm text-center py-4">
-        Playlist is empty
-      </div>
-    `;
+    playlistBox.innerHTML =
+      `
+        <div
+          class="
+            text-slate-500
+            text-sm
+            text-center
+            py-4
+          "
+        >
+          Playlist is empty
+        </div>
+      `;
 
     return;
   }
 
-  playlistBox.innerHTML =
+  /*
+     Build once instead of repeatedly manipulating individual
+     DOM nodes.
+  */
+
+  const html =
     playlist
-      .map((track, index) => {
-        const active =
-          index === currentIndex
-            ? 'ring-2 ring-indigo-500'
-            : '';
+      .map(
+        (track, index) => {
+          const active =
+            index === currentIndex
+              ? 'ring-2 ring-indigo-500'
+              : '';
 
-        return `
-          <div
-            class="
-              beatsync-playlist-item
-              p-2
-              rounded-md
-              bg-slate-800
-              flex
-              items-center
-              justify-between
-              gap-3
-              ${active}
-            "
-            data-index="${index}"
-          >
-
-            <div class="min-w-0 flex-1">
-
-              <div
-                class="
-                  font-semibold
-                  text-sm
-                  truncate
-                "
-              >
-                ${escapeHtml(track.title)}
-              </div>
-
-              <div
-                class="
-                  text-xs
-                  text-slate-400
-                  truncate
-                "
-              >
-                ${escapeHtml(
-                  track.channelTitle || ''
-                )}
-              </div>
-
-            </div>
-
+          return `
             <div
               class="
+                beatsync-playlist-item
+                p-2
+                rounded-md
+                bg-slate-800
                 flex
                 items-center
-                gap-2
-                shrink-0
+                justify-between
+                gap-3
+                ${active}
               "
+              data-index="${index}"
             >
 
-              <button
-                type="button"
+              <div
                 class="
-                  smallPlay
-                  px-2
-                  py-1
-                  rounded-md
-                  bg-emerald-500
-                  text-xs
-                  touch-manipulation
+                  min-w-0
+                  flex-1
                 "
-                data-i="${index}"
               >
-                ▶
-              </button>
 
-              <button
-                type="button"
+                <div
+                  class="
+                    font-semibold
+                    text-sm
+                    truncate
+                  "
+                >
+                  ${escapeHtml(
+                    track.title
+                  )}
+                </div>
+
+                <div
+                  class="
+                    text-xs
+                    text-slate-400
+                    truncate
+                  "
+                >
+                  ${escapeHtml(
+                    track.channelTitle ||
+                    ''
+                  )}
+                </div>
+
+              </div>
+
+              <div
                 class="
-                  smallRem
-                  px-2
-                  py-1
-                  rounded-md
-                  bg-red-600
-                  text-xs
-                  touch-manipulation
+                  flex
+                  items-center
+                  gap-2
+                  shrink-0
                 "
-                data-i="${index}"
               >
-                ✕
-              </button>
+
+                <button
+                  type="button"
+                  class="
+                    smallPlay
+                    px-2
+                    py-1
+                    rounded-md
+                    bg-emerald-500
+                    text-xs
+                  "
+                  data-i="${index}"
+                >
+                  ▶
+                </button>
+
+                <button
+                  type="button"
+                  class="
+                    smallRem
+                    px-2
+                    py-1
+                    rounded-md
+                    bg-red-600
+                    text-xs
+                  "
+                  data-i="${index}"
+                >
+                  ✕
+                </button>
+
+              </div>
 
             </div>
-
-          </div>
-        `;
-      })
+          `;
+        }
+      )
       .join('');
+
+  playlistBox.innerHTML =
+    html;
 }
 
-/* ---------------------------------------------------------
-   Playlist Controls
---------------------------------------------------------- */
+/* =========================================================
+   PLAYLIST EVENTS
+========================================================= */
 
 if (playlistBox) {
   playlistBox.addEventListener(
     'click',
     (event) => {
       const playButton =
-        event.target.closest('.smallPlay');
+        event.target.closest(
+          '.smallPlay'
+        );
 
       const removeButton =
-        event.target.closest('.smallRem');
-
-      /*
-         PLAY
-      */
+        event.target.closest(
+          '.smallRem'
+        );
 
       if (playButton) {
         const index =
-          Number(playButton.dataset.i);
+          Number(
+            playButton.dataset.i
+          );
 
         if (!isHost) {
           alert(
@@ -834,16 +1322,21 @@ if (playlistBox) {
         }
 
         if (
-          !Number.isInteger(index) ||
+          !Number.isInteger(
+            index
+          ) ||
           !playlist[index]
         ) {
           return;
         }
 
-        currentIndex = index;
+        currentIndex =
+          index;
 
         const track =
-          playlist[currentIndex];
+          playlist[
+            currentIndex
+          ];
 
         hostLoad(
           track.id,
@@ -851,16 +1344,22 @@ if (playlistBox) {
           true
         );
 
-        setTrackInfo(track);
+        setTrackInfo(
+          track
+        );
 
         socket.emit(
           'player:setTrack',
           {
-            roomId: currentRoom,
+            roomId:
+              currentRoom,
 
             track: {
-              type: 'youtube',
-              id: track.id
+              type:
+                'youtube',
+
+              id:
+                track.id
             }
           }
         );
@@ -870,31 +1369,33 @@ if (playlistBox) {
         return;
       }
 
-      /*
-         REMOVE
-      */
-
       if (removeButton) {
         const index =
-          Number(removeButton.dataset.i);
+          Number(
+            removeButton.dataset.i
+          );
 
         if (
-          !Number.isInteger(index) ||
+          !Number.isInteger(
+            index
+          ) ||
           !playlist[index]
         ) {
           return;
         }
 
-        const wasCurrent =
-          index === currentIndex;
+        const removingCurrent =
+          index ===
+          currentIndex;
 
         playlist.splice(
           index,
           1
         );
 
-        if (wasCurrent) {
-          currentIndex = -1;
+        if (removingCurrent) {
+          currentIndex =
+            -1;
 
           if (
             ytPlayer &&
@@ -907,8 +1408,10 @@ if (playlistBox) {
               /* ignore */
             }
           }
+
         } else if (
-          index < currentIndex
+          index <
+          currentIndex
         ) {
           currentIndex--;
         }
@@ -919,92 +1422,395 @@ if (playlistBox) {
   );
 }
 
-/* ---------------------------------------------------------
-   Clear Search
---------------------------------------------------------- */
+/* =========================================================
+   SEARCH
+========================================================= */
 
 function clearSearch() {
   if (resultsBox) {
-    resultsBox.innerHTML = '';
+    resultsBox.innerHTML =
+      '';
   }
 
   if (searchPro) {
-    searchPro.value = '';
+    searchPro.value =
+      '';
   }
+
+  /*
+     Invalidate an active search.
+  */
+
+  searchRequestId++;
 
   syncSearchResultPlacement();
 }
 
-/* ---------------------------------------------------------
-   Add Track To Playlist
---------------------------------------------------------- */
+async function doSearch() {
+  const query =
+    (
+      searchPro?.value ||
+      ''
+    ).trim();
 
-function addToPlaylist(item) {
-  if (!item || !item.id) {
+  if (!query) {
+    clearSearch();
     return;
   }
 
-  playlist.push({
-    id: item.id,
-    title:
-      item.title ||
-      'YouTube video',
+  const requestId =
+    ++searchRequestId;
 
-    channelTitle:
-      item.channelTitle ||
-      '',
+  if (resultsBox) {
+    resultsBox.innerHTML =
+      `
+        <div
+          class="
+            text-slate-400
+            text-sm
+            text-center
+            py-4
+          "
+        >
+          Searching…
+        </div>
+      `;
+  }
 
-    thumbnail:
-      item.thumbnail ||
-      ''
-  });
+  syncSearchResultPlacement();
 
-  renderPlaylist();
-
-  clearSearch();
-
-  /*
-     If playlist was empty, automatically start the first
-     song for the host.
-  */
-
-  if (
-    currentIndex === -1 &&
-    isHost
-  ) {
-    currentIndex =
-      playlist.length - 1;
-
-    const track =
-      playlist[currentIndex];
-
-    hostLoad(
-      track.id,
-      0,
-      true
-    );
-
-    setTrackInfo(track);
-
-    socket.emit(
-      'player:setTrack',
-      {
-        roomId: currentRoom,
-
-        track: {
-          type: 'youtube',
-          id: track.id
+  try {
+    const response =
+      await fetch(
+        `/api/yt/search?q=${encodeURIComponent(
+          query
+        )}&limit=12`,
+        {
+          method: 'GET',
+          cache: 'no-store',
+          headers: {
+            Accept:
+              'application/json'
+          }
         }
+      );
+
+    if (
+      requestId !==
+      searchRequestId
+    ) {
+      return;
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        'Search request failed'
+      );
+    }
+
+    const data =
+      await response.json();
+
+    if (
+      requestId !==
+      searchRequestId
+    ) {
+      return;
+    }
+
+    const items =
+      Array.isArray(data)
+        ? data
+        : Array.isArray(
+            data.results
+          )
+          ? data.results
+          : [];
+
+    if (!items.length) {
+      if (resultsBox) {
+        resultsBox.innerHTML =
+          `
+            <div
+              class="
+                text-slate-400
+                text-sm
+                text-center
+                py-4
+              "
+            >
+              No results found
+            </div>
+          `;
       }
+
+      syncSearchResultPlacement();
+
+      return;
+    }
+
+    if (!resultsBox) {
+      return;
+    }
+
+    /*
+       Keep result markup lightweight.
+    */
+
+    resultsBox.innerHTML =
+      items
+        .map(
+          (item, index) => {
+            const videoId =
+              item.videoId ||
+              item.id ||
+              '';
+
+            const title =
+              item.title ||
+              'YouTube video';
+
+            const channel =
+              item.channelTitle ||
+              item.channel ||
+              '';
+
+            const thumbnail =
+              item.thumbnail ||
+              item.thumbnailUrl ||
+              (
+                videoId
+                  ? `https://i.ytimg.com/vi/${encodeURIComponent(
+                      videoId
+                    )}/mqdefault.jpg`
+                  : ''
+              );
+
+            return `
+              <div
+                class="
+                  beatsync-search-result
+                  p-2
+                  rounded-md
+                  bg-slate-800
+                  flex
+                  items-center
+                  justify-between
+                  gap-3
+                  mb-2
+                "
+                data-video-id="${escapeHtml(
+                  videoId
+                )}"
+              >
+
+                <button
+                  type="button"
+                  class="
+                    search-result-main
+                    flex
+                    items-center
+                    gap-3
+                    min-w-0
+                    flex-1
+                    text-left
+                  "
+                  data-video-id="${escapeHtml(
+                    videoId
+                  )}"
+                >
+
+                  ${
+                    thumbnail
+                      ? `
+                        <img
+                          src="${escapeHtml(
+                            thumbnail
+                          )}"
+                          width="64"
+                          height="36"
+                          loading="lazy"
+                          decoding="async"
+                          class="
+                            w-16
+                            h-9
+                            rounded-md
+                            object-cover
+                            shrink-0
+                          "
+                          alt=""
+                        >
+                      `
+                      : ''
+                  }
+
+                  <span
+                    class="
+                      min-w-0
+                      overflow-hidden
+                    "
+                  >
+
+                    <span
+                      class="
+                        block
+                        font-semibold
+                        text-sm
+                        truncate
+                      "
+                    >
+                      ${escapeHtml(
+                        title
+                      )}
+                    </span>
+
+                    <span
+                      class="
+                        block
+                        text-xs
+                        text-slate-400
+                        truncate
+                        mt-0.5
+                      "
+                    >
+                      ${escapeHtml(
+                        channel
+                      )}
+                    </span>
+
+                  </span>
+
+                </button>
+
+                <div
+                  class="
+                    flex
+                    items-center
+                    gap-2
+                    shrink-0
+                  "
+                >
+
+                  <button
+                    type="button"
+                    class="
+                      addBtn
+                      w-9
+                      h-9
+                      rounded-full
+                      bg-emerald-500
+                      text-white
+                      flex
+                      items-center
+                      justify-center
+                      text-lg
+                    "
+                    data-id="${escapeHtml(
+                      videoId
+                    )}"
+                    data-title="${escapeHtml(
+                      title
+                    )}"
+                    data-channel="${escapeHtml(
+                      channel
+                    )}"
+                    data-thumbnail="${escapeHtml(
+                      thumbnail
+                    )}"
+                  >
+                    +
+                  </button>
+
+                  <button
+                    type="button"
+                    class="
+                      playNow
+                      w-9
+                      h-9
+                      rounded-full
+                      bg-slate-700
+                      text-white
+                      flex
+                      items-center
+                      justify-center
+                    "
+                    data-id="${escapeHtml(
+                      videoId
+                    )}"
+                    data-title="${escapeHtml(
+                      title
+                    )}"
+                    data-channel="${escapeHtml(
+                      channel
+                    )}"
+                    data-thumbnail="${escapeHtml(
+                      thumbnail
+                    )}"
+                  >
+                    ▶
+                  </button>
+
+                </div>
+
+              </div>
+            `;
+          }
+        )
+        .join('');
+
+    syncSearchResultPlacement();
+
+  } catch (error) {
+    console.error(
+      'BeatSync search error:',
+      error
     );
 
-    renderPlaylist();
+    if (
+      requestId !==
+      searchRequestId
+    ) {
+      return;
+    }
+
+    if (resultsBox) {
+      resultsBox.innerHTML =
+        `
+          <div
+            class="
+              text-red-400
+              text-sm
+              text-center
+              py-4
+            "
+          >
+            Search failed. Please try again.
+          </div>
+        `;
+    }
+
+    syncSearchResultPlacement();
   }
 }
 
-/* ---------------------------------------------------------
-   Search Input Configuration
---------------------------------------------------------- */
+/* =========================================================
+   SEARCH BUTTON
+========================================================= */
+
+if (btnSearch) {
+  btnSearch.addEventListener(
+    'click',
+    (event) => {
+      event.preventDefault();
+
+      doSearch();
+    }
+  );
+}
+
+/* =========================================================
+   SEARCH INPUT
+========================================================= */
 
 if (searchPro) {
   searchPro.setAttribute(
@@ -1031,351 +1837,7 @@ if (searchPro) {
     'enterkeyhint',
     'search'
   );
-}
 
-/* ---------------------------------------------------------
-   Search
---------------------------------------------------------- */
-
-async function doSearch() {
-  const query =
-    (searchPro?.value || '').trim();
-
-  if (!query) {
-    clearSearch();
-    return;
-  }
-
-  const requestId =
-    ++searchRequestId;
-
-  if (resultsBox) {
-    resultsBox.innerHTML = `
-      <div
-        class="
-          text-slate-400
-          text-sm
-          text-center
-          py-4
-        "
-      >
-        Searching…
-      </div>
-    `;
-  }
-
-  syncSearchResultPlacement();
-
-  try {
-    const response =
-      await fetch(
-        `/api/yt/search?q=${encodeURIComponent(
-          query
-        )}&limit=12`,
-        {
-          method: 'GET',
-          cache: 'no-store',
-          headers: {
-            Accept:
-              'application/json'
-          }
-        }
-      );
-
-    if (requestId !== searchRequestId) {
-      return;
-    }
-
-    if (!response.ok) {
-      throw new Error(
-        `Search failed with status ${response.status}`
-      );
-    }
-
-    const data =
-      await response.json();
-
-    if (requestId !== searchRequestId) {
-      return;
-    }
-
-    const items =
-      Array.isArray(data)
-        ? data
-        : Array.isArray(data.results)
-          ? data.results
-          : [];
-
-    if (!items.length) {
-      if (resultsBox) {
-        resultsBox.innerHTML = `
-          <div
-            class="
-              text-slate-400
-              text-sm
-              text-center
-              py-4
-            "
-          >
-            No results found
-          </div>
-        `;
-      }
-
-      syncSearchResultPlacement();
-
-      return;
-    }
-
-    if (!resultsBox) {
-      return;
-    }
-
-    resultsBox.innerHTML =
-      items
-        .map((item, index) => {
-          const videoId =
-            item.videoId ||
-            item.id ||
-            '';
-
-          const title =
-            item.title ||
-            'YouTube video';
-
-          const channelTitle =
-            item.channelTitle ||
-            item.channel ||
-            '';
-
-          const thumbnail =
-            item.thumbnail ||
-            item.thumbnailUrl ||
-            `https://i.ytimg.com/vi/${encodeURIComponent(
-              videoId
-            )}/mqdefault.jpg`;
-
-          return `
-            <div
-              class="
-                beatsync-search-result
-                p-2
-                rounded-md
-                bg-slate-800
-                hover:bg-slate-700
-                transition
-                flex
-                items-center
-                justify-between
-                gap-3
-                mb-2
-                last:mb-0
-              "
-              data-video-id="${escapeHtml(
-                videoId
-              )}"
-              data-index="${index}"
-            >
-
-              <button
-                type="button"
-                class="
-                  search-result-main
-                  flex
-                  items-center
-                  gap-3
-                  min-w-0
-                  flex-1
-                  text-left
-                  cursor-pointer
-                  touch-manipulation
-                "
-                data-video-id="${escapeHtml(
-                  videoId
-                )}"
-              >
-
-                <img
-                  src="${escapeHtml(
-                    thumbnail
-                  )}"
-                  width="64"
-                  height="36"
-                  loading="lazy"
-                  class="
-                    w-16
-                    h-9
-                    rounded-md
-                    object-cover
-                    shrink-0
-                  "
-                  alt=""
-                />
-
-                <span class="min-w-0">
-
-                  <span
-                    class="
-                      block
-                      font-semibold
-                      text-sm
-                      truncate
-                    "
-                  >
-                    ${escapeHtml(title)}
-                  </span>
-
-                  <span
-                    class="
-                      block
-                      text-xs
-                      text-slate-400
-                      truncate
-                      mt-0.5
-                    "
-                  >
-                    ${escapeHtml(
-                      channelTitle
-                    )}
-                  </span>
-
-                </span>
-
-              </button>
-
-              <div
-                class="
-                  flex
-                  items-center
-                  gap-2
-                  shrink-0
-                "
-              >
-
-                <button
-                  type="button"
-                  class="
-                    addBtn
-                    w-9
-                    h-9
-                    rounded-full
-                    bg-emerald-500
-                    hover:bg-emerald-400
-                    text-white
-                    flex
-                    items-center
-                    justify-center
-                    text-lg
-                    touch-manipulation
-                  "
-                  data-id="${escapeHtml(
-                    videoId
-                  )}"
-                  data-title="${escapeHtml(
-                    title
-                  )}"
-                  data-channel="${escapeHtml(
-                    channelTitle
-                  )}"
-                  data-thumbnail="${escapeHtml(
-                    thumbnail
-                  )}"
-                  aria-label="Add to playlist"
-                >
-                  +
-                </button>
-
-                <button
-                  type="button"
-                  class="
-                    playNow
-                    w-9
-                    h-9
-                    rounded-full
-                    bg-slate-700
-                    hover:bg-slate-600
-                    text-white
-                    flex
-                    items-center
-                    justify-center
-                    text-sm
-                    touch-manipulation
-                  "
-                  data-id="${escapeHtml(
-                    videoId
-                  )}"
-                  data-title="${escapeHtml(
-                    title
-                  )}"
-                  data-channel="${escapeHtml(
-                    channelTitle
-                  )}"
-                  data-thumbnail="${escapeHtml(
-                    thumbnail
-                  )}"
-                  aria-label="Play now"
-                >
-                  ▶
-                </button>
-
-              </div>
-
-            </div>
-          `;
-        })
-        .join('');
-
-    syncSearchResultPlacement();
-
-  } catch (error) {
-    console.error(
-      'BeatSync search error:',
-      error
-    );
-
-    if (requestId !== searchRequestId) {
-      return;
-    }
-
-    if (resultsBox) {
-      resultsBox.innerHTML = `
-        <div
-          class="
-            text-red-400
-            text-sm
-            text-center
-            py-4
-          "
-        >
-          Search failed. Please try again.
-        </div>
-      `;
-    }
-
-    syncSearchResultPlacement();
-  }
-}
-
-/* ---------------------------------------------------------
-   Search Button
---------------------------------------------------------- */
-
-if (btnSearch) {
-  btnSearch.addEventListener(
-    'click',
-    (event) => {
-      event.preventDefault();
-
-      doSearch();
-    }
-  );
-}
-
-/* ---------------------------------------------------------
-   Search Keyboard
---------------------------------------------------------- */
-
-if (searchPro) {
   searchPro.addEventListener(
     'keydown',
     (event) => {
@@ -1385,29 +1847,37 @@ if (searchPro) {
       ) {
         event.preventDefault();
 
+        clearTimeout(
+          searchTimer
+        );
+
         doSearch();
       }
     }
   );
 
   /*
-     Small debounce for typing-based realtime search.
+     Lightweight realtime search.
 
-     This does NOT search on every single keystroke.
-     It waits briefly after the user stops typing.
+     Waits 400ms after typing stops.
   */
 
   searchPro.addEventListener(
     'input',
     () => {
-      clearTimeout(searchTimer);
+      clearTimeout(
+        searchTimer
+      );
 
       const query =
         searchPro.value.trim();
 
-      if (query.length < 2) {
+      if (
+        query.length < 2
+      ) {
         if (resultsBox) {
-          resultsBox.innerHTML = '';
+          resultsBox.innerHTML =
+            '';
         }
 
         return;
@@ -1418,70 +1888,155 @@ if (searchPro) {
           () => {
             doSearch();
           },
-          350
+          400
         );
-    }
+    },
+    { passive: true }
   );
 }
 
-/* ---------------------------------------------------------
-   Search Result Actions
---------------------------------------------------------- */
+/* =========================================================
+   ADD TO PLAYLIST
+========================================================= */
+
+function addToPlaylist(item) {
+  if (
+    !item ||
+    !item.id
+  ) {
+    return;
+  }
+
+  /*
+     Prevent accidental duplicate entries.
+  */
+
+  const duplicate =
+    playlist.some(
+      (track) =>
+        track.id ===
+        item.id
+    );
+
+  if (!duplicate) {
+    playlist.push({
+      id:
+        item.id,
+
+      title:
+        item.title ||
+        'YouTube video',
+
+      channelTitle:
+        item.channelTitle ||
+        '',
+
+      thumbnail:
+        item.thumbnail ||
+        ''
+    });
+  }
+
+  renderPlaylist();
+
+  clearSearch();
+
+  /*
+     First playlist song starts automatically.
+  */
+
+  if (
+    currentIndex === -1 &&
+    isHost
+  ) {
+    currentIndex =
+      playlist.length - 1;
+
+    const track =
+      playlist[
+        currentIndex
+      ];
+
+    hostLoad(
+      track.id,
+      0,
+      true
+    );
+
+    setTrackInfo(
+      track
+    );
+
+    socket.emit(
+      'player:setTrack',
+      {
+        roomId:
+          currentRoom,
+
+        track: {
+          type:
+            'youtube',
+
+          id:
+            track.id
+        }
+      }
+    );
+
+    renderPlaylist();
+  }
+}
+
+/* =========================================================
+   SEARCH RESULT EVENTS
+========================================================= */
 
 if (resultsBox) {
   resultsBox.addEventListener(
     'click',
     (event) => {
       const addButton =
-        event.target.closest('.addBtn');
+        event.target.closest(
+          '.addBtn'
+        );
 
       const playButton =
-        event.target.closest('.playNow');
+        event.target.closest(
+          '.playNow'
+        );
 
-      const resultMain =
+      const mainButton =
         event.target.closest(
           '.search-result-main'
         );
 
       /*
-         ADD TO PLAYLIST
+         ADD
       */
 
       if (addButton) {
         event.preventDefault();
         event.stopPropagation();
 
-        const id =
-          addButton.dataset.id;
-
-        const title =
-          addButton.dataset.title ||
-          'YouTube video';
-
-        const channel =
-          addButton.dataset.channel ||
-          '';
-
-        const thumbnail =
-          addButton.dataset.thumbnail ||
-          '';
-
-        if (!id) {
-          return;
-        }
-
         addToPlaylist({
-          id,
-          title,
-          channelTitle: channel,
-          thumbnail
+          id:
+            addButton.dataset.id,
+
+          title:
+            addButton.dataset.title,
+
+          channelTitle:
+            addButton.dataset.channel,
+
+          thumbnail:
+            addButton.dataset.thumbnail
         });
 
         return;
       }
 
       /*
-         PLAY NOW BUTTON
+         PLAY BUTTON
       */
 
       if (playButton) {
@@ -1499,14 +2054,14 @@ if (resultsBox) {
       }
 
       /*
-         CLICKING THE RESULT ITSELF ALSO PLAYS IT.
+         CLICK RESULT
       */
 
-      if (resultMain) {
+      if (mainButton) {
         event.preventDefault();
 
         playSearchResult(
-          resultMain.dataset.videoId,
+          mainButton.dataset.videoId,
           '',
           '',
           ''
@@ -1516,9 +2071,9 @@ if (resultsBox) {
   );
 }
 
-/* ---------------------------------------------------------
-   Play Search Result
---------------------------------------------------------- */
+/* =========================================================
+   PLAY SEARCH RESULT
+========================================================= */
 
 function playSearchResult(
   videoId,
@@ -1538,12 +2093,9 @@ function playSearchResult(
     return;
   }
 
-  /*
-     Set track information immediately.
-  */
-
   const track = {
-    id: videoId,
+    id:
+      videoId,
 
     title:
       title ||
@@ -1558,13 +2110,16 @@ function playSearchResult(
       ''
   };
 
-  currentIndex = -1;
+  /*
+     Search result playback is not automatically added to
+     playlist.
+  */
+
+  currentIndex =
+    -1;
 
   /*
-     This call is synchronous from the user's tap.
-
-     That is important for Android browser autoplay
-     behaviour.
+     Direct user action -> YouTube playback.
   */
 
   hostLoad(
@@ -1573,16 +2128,22 @@ function playSearchResult(
     true
   );
 
-  setTrackInfo(track);
+  setTrackInfo(
+    track
+  );
 
   socket.emit(
     'player:setTrack',
     {
-      roomId: currentRoom,
+      roomId:
+        currentRoom,
 
       track: {
-        type: 'youtube',
-        id: videoId
+        type:
+          'youtube',
+
+        id:
+          videoId
       }
     }
   );
@@ -1592,9 +2153,9 @@ function playSearchResult(
   renderPlaylist();
 }
 
-/* ---------------------------------------------------------
-   Socket — Stats
---------------------------------------------------------- */
+/* =========================================================
+   SOCKET — ONLINE STATS
+========================================================= */
 
 socket.on(
   'stats:update',
@@ -1608,9 +2169,9 @@ socket.on(
   }
 );
 
-/* ---------------------------------------------------------
-   Socket — Track Changed
---------------------------------------------------------- */
+/* =========================================================
+   SOCKET — TRACK CHANGED
+========================================================= */
 
 socket.on(
   'player:trackChanged',
@@ -1624,7 +2185,8 @@ socket.on(
     }
 
     if (
-      track.type === 'youtube' &&
+      track.type ===
+        'youtube' &&
       track.id
     ) {
       loadForGuest(
@@ -1634,13 +2196,17 @@ socket.on(
       );
 
       setTrackInfo({
-        id: track.id,
+        id:
+          track.id,
+
         title:
           track.title ||
           'YouTube video',
+
         channelTitle:
           track.channelTitle ||
           '',
+
         thumbnail:
           track.thumbnail ||
           ''
@@ -1649,9 +2215,9 @@ socket.on(
   }
 );
 
-/* ---------------------------------------------------------
-   Socket — Playback Sync
---------------------------------------------------------- */
+/* =========================================================
+   SOCKET — PLAYBACK SYNC
+========================================================= */
 
 socket.on(
   'player:sync',
@@ -1660,10 +2226,6 @@ socket.on(
     currentTime,
     ts
   } = {}) => {
-    /*
-       Host does not need remote synchronization.
-    */
-
     if (isHost) {
       return;
     }
@@ -1680,30 +2242,33 @@ socket.on(
         Date.now();
 
       const timestamp =
-        Number(ts) || now;
+        Number(ts) ||
+        now;
 
       const elapsed =
         Math.max(
           0,
-          now - timestamp
+          now -
+            timestamp
         );
 
       const targetTime =
-        (Number(currentTime) || 0) +
+        (
+          Number(
+            currentTime
+          ) || 0
+        ) +
         elapsed / 1000;
 
       const localTime =
-        ytPlayer.getCurrentTime() || 0;
+        ytPlayer.getCurrentTime() ||
+        0;
 
       const difference =
         Math.abs(
           localTime -
           targetTime
         );
-
-      /*
-         Correct significant drift.
-      */
 
       if (
         difference >
@@ -1718,17 +2283,6 @@ socket.on(
         );
       }
 
-      /*
-         IMPORTANT:
-
-         YouTube playVideo() does NOT return a Promise.
-
-         Never use:
-             playVideo().catch(...)
-
-         because that causes Android errors.
-      */
-
       if (isPlaying) {
         ytPlayer.playVideo();
       } else {
@@ -1737,20 +2291,23 @@ socket.on(
 
     } catch (error) {
       console.warn(
-        'Playback synchronization error:',
+        'Sync error:',
         error
       );
     }
   }
 );
 
-/* ---------------------------------------------------------
-   Chat Send
---------------------------------------------------------- */
+/* =========================================================
+   CHAT
+========================================================= */
 
 function sendChat() {
   const text =
-    (msgInput?.value || '').trim();
+    (
+      msgInput?.value ||
+      ''
+    ).trim();
 
   if (
     !text ||
@@ -1762,7 +2319,8 @@ function sendChat() {
   socket.emit(
     'chat:send',
     {
-      roomId: currentRoom,
+      roomId:
+        currentRoom,
 
       userName:
         name ||
@@ -1776,7 +2334,9 @@ function sendChat() {
         response.ok
       ) {
         if (msgInput) {
-          msgInput.value = '';
+          msgInput.value =
+            '';
+
           msgInput.focus();
         }
       } else {
@@ -1815,16 +2375,17 @@ if (msgInput) {
   );
 }
 
-/* ---------------------------------------------------------
-   Socket — New Chat Message
---------------------------------------------------------- */
+/* =========================================================
+   CHAT NEW MESSAGE
+========================================================= */
 
 socket.on(
   'chat:new',
   (message) => {
     if (
       !message ||
-      message.roomId !== currentRoom
+      message.roomId !==
+        currentRoom
     ) {
       return;
     }
@@ -1841,17 +2402,34 @@ socket.on(
       message
     );
 
+    /*
+       Limit in-memory chat history so an extremely long room
+       does not keep growing indefinitely on the client.
+    */
+
+    if (
+      window._chat.length >
+      300
+    ) {
+      window._chat =
+        window._chat.slice(
+          -300
+        );
+    }
+
     renderChat(
       window._chat
     );
   }
 );
 
-/* ---------------------------------------------------------
-   Render Chat
---------------------------------------------------------- */
+/* =========================================================
+   CHAT RENDER
+========================================================= */
 
-function renderChat(messages) {
+function renderChat(
+  messages
+) {
   if (!chatWindow) {
     return;
   }
@@ -1861,58 +2439,98 @@ function renderChat(messages) {
       ? messages
       : [];
 
+  /*
+     Single innerHTML operation.
+  */
+
   chatWindow.innerHTML =
     list
-      .map((message) => {
-        const date =
-          new Date(
-            message.ts ||
-            Date.now()
-          );
+      .map(
+        (message) => {
+          const date =
+            new Date(
+              message.ts ||
+              Date.now()
+            );
 
-        const hours =
-          String(
-            date.getHours()
-          ).padStart(
-            2,
-            '0'
-          );
+          const hours =
+            String(
+              date.getHours()
+            ).padStart(
+              2,
+              '0'
+            );
 
-        const minutes =
-          String(
-            date.getMinutes()
-          ).padStart(
-            2,
-            '0'
-          );
+          const minutes =
+            String(
+              date.getMinutes()
+            ).padStart(
+              2,
+              '0'
+            );
 
-        const sender =
-          String(
-            message.userName ||
-            ''
-          ).trim();
+          const sender =
+            String(
+              message.userName ||
+              ''
+            ).trim();
 
-        const currentUser =
-          String(
-            name ||
-            ''
-          ).trim();
+          const currentUser =
+            String(
+              name ||
+              ''
+            ).trim();
 
-        const isMe =
-          sender ===
-          currentUser;
+          const isMe =
+            sender ===
+            currentUser;
 
-        /*
-           Own messages → right
-           Received messages → left
-        */
+          if (isMe) {
+            return `
+              <div
+                class="
+                  flex
+                  justify-end
+                  mb-2
+                "
+              >
 
-        if (isMe) {
+                <div
+                  class="
+                    chat-bubble
+                    chat-right
+                    max-w-[82%]
+                  "
+                >
+
+                  <div>
+                    ${escapeHtml(
+                      message.text
+                    )}
+                  </div>
+
+                  <div
+                    class="
+                      text-[10px]
+                      text-white/80
+                      mt-1
+                      text-right
+                    "
+                  >
+                    ${hours}:${minutes}
+                  </div>
+
+                </div>
+
+              </div>
+            `;
+          }
+
           return `
             <div
               class="
                 flex
-                justify-end
+                justify-start
                 mb-2
               "
             >
@@ -1920,10 +2538,21 @@ function renderChat(messages) {
               <div
                 class="
                   chat-bubble
-                  chat-right
+                  chat-left
                   max-w-[82%]
                 "
               >
+
+                <div
+                  class="
+                    font-semibold
+                    text-xs
+                  "
+                >
+                  ${escapeHtml(
+                    sender
+                  )}
+                </div>
 
                 <div>
                   ${escapeHtml(
@@ -1934,9 +2563,8 @@ function renderChat(messages) {
                 <div
                   class="
                     text-[10px]
-                    text-white/80
+                    text-slate-400
                     mt-1
-                    text-right
                   "
                 >
                   ${hours}:${minutes}
@@ -1947,99 +2575,33 @@ function renderChat(messages) {
             </div>
           `;
         }
-
-        return `
-          <div
-            class="
-              flex
-              justify-start
-              mb-2
-            "
-          >
-
-            <div
-              class="
-                chat-bubble
-                chat-left
-                max-w-[82%]
-              "
-            >
-
-              <div>
-                <span
-                  class="
-                    font-semibold
-                    text-xs
-                  "
-                >
-                  ${escapeHtml(
-                    sender
-                  )}
-                </span>
-              </div>
-
-              <div>
-                ${escapeHtml(
-                  message.text
-                )}
-              </div>
-
-              <div
-                class="
-                  text-[10px]
-                  text-slate-400
-                  mt-1
-                "
-              >
-                ${hours}:${minutes}
-              </div>
-
-            </div>
-
-          </div>
-        `;
-      })
+      )
       .join('');
 
   /*
-     Always show the latest message.
+     Scroll only once after rendering.
   */
 
   chatWindow.scrollTop =
     chatWindow.scrollHeight;
 }
 
-/* ---------------------------------------------------------
-   Show Music
---------------------------------------------------------- */
+/* =========================================================
+   SHOW MUSIC
+========================================================= */
 
 function showMusic() {
-  /*
-     Hide full-screen chat.
-  */
-
   if (chatFull) {
     chatFull.classList.add(
       'hidden'
     );
   }
 
-  /*
-     Show music area.
-
-     Prefer explicit musicSection.
-  */
-
   if (musicSection) {
     musicSection.classList.remove(
       'hidden'
     );
   }
-
-  /*
-     If mainGrid exists and musicSection is a child,
-     make sure the grid itself is visible.
-  */
 
   if (mainGrid) {
     mainGrid.classList.remove(
@@ -2075,15 +2637,11 @@ function showMusic() {
   }
 }
 
-/* ---------------------------------------------------------
-   Show Chat
---------------------------------------------------------- */
+/* =========================================================
+   SHOW CHAT
+========================================================= */
 
 function showChat() {
-  /*
-     Hide music content.
-  */
-
   if (musicSection) {
     musicSection.classList.add(
       'hidden'
@@ -2091,11 +2649,7 @@ function showChat() {
   }
 
   /*
-     If mainGrid contains music UI, hide it too only when
-     there is no dedicated musicSection.
-
-     This prevents premium layouts from leaving search,
-     playlist or music controls visible behind chat.
+     For layouts where mainGrid is the music container.
   */
 
   if (
@@ -2106,10 +2660,6 @@ function showChat() {
       'hidden'
     );
   }
-
-  /*
-     Show full-screen chat.
-  */
 
   if (chatFull) {
     chatFull.classList.remove(
@@ -2129,10 +2679,6 @@ function showChat() {
     );
   }
 
-  /*
-     Search should never remain visible in Chat mode.
-  */
-
   if (searchWrapper) {
     searchWrapper.style.display =
       'none';
@@ -2151,9 +2697,9 @@ function showChat() {
   );
 }
 
-/* ---------------------------------------------------------
-   Music / Chat Tabs
---------------------------------------------------------- */
+/* =========================================================
+   TABS
+========================================================= */
 
 if (musicTabBtn) {
   musicTabBtn.addEventListener(
@@ -2169,9 +2715,9 @@ if (chatTabBtn) {
   );
 }
 
-/* ---------------------------------------------------------
-   Leave Room
---------------------------------------------------------- */
+/* =========================================================
+   LEAVE
+========================================================= */
 
 if (btnLeave) {
   btnLeave.addEventListener(
@@ -2183,59 +2729,65 @@ if (btnLeave) {
   );
 }
 
-/* ---------------------------------------------------------
-   Host Heartbeat
---------------------------------------------------------- */
+/* =========================================================
+   HOST HEARTBEAT
+========================================================= */
 
-setInterval(() => {
-  if (
-    !isHost ||
-    !ytReady ||
-    !ytPlayer ||
-    !currentRoom
-  ) {
-    return;
-  }
+setInterval(
+  () => {
+    if (
+      !isHost ||
+      !ytReady ||
+      !ytPlayer ||
+      !currentRoom
+    ) {
+      return;
+    }
 
-  try {
-    const currentTime =
-      Math.floor(
-        ytPlayer.getCurrentTime() || 0
+    try {
+      const currentTime =
+        Math.floor(
+          ytPlayer.getCurrentTime() ||
+          0
+        );
+
+      const playerState =
+        ytPlayer.getPlayerState();
+
+      const isPlaying =
+        typeof YT !== 'undefined' &&
+        playerState ===
+          YT.PlayerState.PLAYING;
+
+      socket.emit(
+        'player:stateChange',
+        {
+          roomId:
+            currentRoom,
+
+          isPlaying,
+
+          currentTime
+        }
       );
 
-    const playerState =
-      ytPlayer.getPlayerState();
+    } catch (error) {
+      /*
+         Ignore transient iframe errors.
+      */
+    }
+  },
+  HEARTBEAT_INTERVAL_MS
+);
 
-    const isPlaying =
-      typeof YT !== 'undefined' &&
-      playerState ===
-        YT.PlayerState.PLAYING;
-
-    socket.emit(
-      'player:stateChange',
-      {
-        roomId: currentRoom,
-
-        isPlaying,
-
-        currentTime
-      }
-    );
-
-  } catch (error) {
-    /*
-       Ignore temporary iframe errors.
-    */
-  }
-}, HEARTBEAT_INTERVAL_MS);
-
-/* ---------------------------------------------------------
-   Socket Connection
---------------------------------------------------------- */
+/* =========================================================
+   SOCKET CONNECT
+========================================================= */
 
 socket.on(
   'connect',
   () => {
+
     /*
        CREATE ROOM
     */
@@ -2258,9 +2810,11 @@ socket.on(
           currentRoom =
             response.roomId;
 
-          role = 'HOST';
+          role =
+            'HOST';
 
-          isHost = true;
+          isHost =
+            true;
 
           if (roomBadge) {
             roomBadge.textContent =
@@ -2287,10 +2841,6 @@ socket.on(
             '',
             newUrl
           );
-
-          /*
-             Initialize player immediately if API is ready.
-          */
 
           if (
             youtubeApiReady &&
@@ -2319,7 +2869,8 @@ socket.on(
     socket.emit(
       'room:join',
       {
-        roomId: currentRoom
+        roomId:
+          currentRoom
       },
       async (response) => {
         if (
@@ -2338,7 +2889,7 @@ socket.on(
         }
 
         /*
-           Restore current shared track.
+           Restore current track.
         */
 
         if (
@@ -2355,7 +2906,8 @@ socket.on(
           ) {
             loadForGuest(
               track.id,
-              response.state.currentTime || 0,
+              response.state.currentTime ||
+                0,
               !!response.state.isPlaying
             );
           }
@@ -2372,6 +2924,7 @@ socket.on(
         ) {
           window._chat =
             response.chat.slice();
+
         } else {
           try {
             const chatResponse =
@@ -2397,41 +2950,40 @@ socket.on(
                 )
                   ? chatData.chat.slice()
                   : [];
+
             } else {
-              window._chat = [];
+              window._chat =
+                [];
             }
+
           } catch (error) {
             console.warn(
-              'Unable to restore chat:',
+              'Chat restore failed:',
               error
             );
 
-            window._chat = [];
+            window._chat =
+              [];
           }
         }
 
         renderChat(
-          window._chat || []
+          window._chat ||
+            []
         );
       }
     );
   }
 );
 
-/* ---------------------------------------------------------
-   YouTube IFrame API Ready
---------------------------------------------------------- */
-
-/*
-   This must exist globally because the YouTube API calls it.
-
-   Most important Android fix:
-   create the iframe as soon as the API is ready.
-*/
+/* =========================================================
+   YOUTUBE API READY
+========================================================= */
 
 window.onYouTubeIframeAPIReady =
   function () {
-    youtubeApiReady = true;
+    youtubeApiReady =
+      true;
 
     console.log(
       'BeatSync: YouTube API ready'
@@ -2442,53 +2994,73 @@ window.onYouTubeIframeAPIReady =
     }
   };
 
-/* ---------------------------------------------------------
-   Fallback Initialization
---------------------------------------------------------- */
-
 /*
-   If the YouTube API was already available before this script
-   registered the callback, initialize it here too.
+   Fallback if the API is already available.
 */
 
 if (
   typeof YT !== 'undefined' &&
   YT.Player
 ) {
-  youtubeApiReady = true;
+  youtubeApiReady =
+    true;
 
   if (!ytPlayer) {
     createYTPlayer();
   }
 }
 
-/* ---------------------------------------------------------
-   Initial UI State
---------------------------------------------------------- */
+/* =========================================================
+   INITIAL STATE
+========================================================= */
 
 if (
   chatFull &&
-  !chatFull.classList.contains('hidden')
+  !chatFull.classList.contains(
+    'hidden'
+  )
 ) {
   /*
-     Leave existing HTML state untouched.
+     Respect existing HTML state.
   */
 } else {
   showMusic();
 }
 
-/* ---------------------------------------------------------
-   Initial Playlist
---------------------------------------------------------- */
-
 renderPlaylist();
-
-/* ---------------------------------------------------------
-   Final Mobile Search Sync
---------------------------------------------------------- */
 
 syncSearchResultPlacement();
 
+/* =========================================================
+   FINAL PERFORMANCE SETTINGS
+========================================================= */
+
+/*
+   Prevent browser from attempting to preserve an old scroll
+   position when navigating back into the player.
+*/
+
+if ('scrollRestoration' in history) {
+  try {
+    history.scrollRestoration =
+      'manual';
+  } catch (error) {
+    /* ignore */
+  }
+}
+
+/*
+   Hint browser that this page should not horizontally scroll.
+*/
+
+document.documentElement.style.overflowX =
+  'hidden';
+
+if (document.body) {
+  document.body.style.overflowX =
+    'hidden';
+}
+
 console.log(
-  'BeatSync player.js loaded successfully.'
+  'BeatSync player.js — mobile optimized loaded.'
 );
