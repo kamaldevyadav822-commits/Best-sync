@@ -3,119 +3,548 @@
 <head>
   <meta charset="utf-8" />
   <title>BeatSync — Player</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#08090d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    .fade-in { animation: fadeIn .28s ease both; }
-    @keyframes fadeIn { from {opacity:0; transform: translateY(6px)} to {opacity:1; transform:none} }
-    /* make the chat input stand out on mobile */
-    #chatFull .chat-footer { box-shadow: 0 -6px 18px rgba(2,6,23,0.6); }
 
-    /* Chat bubble styles */
-    .chat-bubble {
-      max-width: 78%;
-      padding: 10px 12px;
-      border-radius: 16px;
-      line-height: 1.15;
+  <style>
+    :root{
+      --bg:#07080c;
+      --panel:rgba(20,22,31,.68);
+      --panel-strong:rgba(25,27,38,.86);
+      --line:rgba(255,255,255,.085);
+      --muted:#9ca3af;
+      --text:#f7f7fb;
+      --accent:#8b5cf6;
+      --accent-2:#6366f1;
+      --shadow:0 24px 80px rgba(0,0,0,.42);
     }
-    .chat-left { background: rgba(255,255,255,0.06); color: #E6EEF6; border-top-left-radius:4px; }
-    .chat-right { background: #4F46E5; color: white; border-top-right-radius:4px; margin-left: auto; }
+
+    *{box-sizing:border-box}
+    html{background:var(--bg);scroll-behavior:smooth}
+    body{
+      margin:0;
+      min-height:100vh;
+      color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",
+        Inter,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      background:
+        radial-gradient(900px 500px at 15% -10%,rgba(124,58,237,.23),transparent 65%),
+        radial-gradient(850px 520px at 100% 5%,rgba(79,70,229,.18),transparent 65%),
+        linear-gradient(180deg,#0b0c12 0%,#07080c 52%,#050609 100%);
+      overflow-x:hidden;
+    }
+
+    body::before{
+      content:"";
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      background:
+        radial-gradient(circle at 50% 20%,rgba(255,255,255,.035),transparent 30%),
+        linear-gradient(rgba(255,255,255,.012) 1px,transparent 1px);
+      background-size:auto,100% 4px;
+      opacity:.32;
+      z-index:0;
+    }
+
+    button,input{font:inherit}
+    button{cursor:pointer}
+    ::selection{background:rgba(139,92,246,.35);color:white}
+    ::-webkit-scrollbar{width:7px;height:7px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:99px}
+    ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2)}
+
+    .app-shell{
+      position:relative;
+      z-index:1;
+      width:min(1180px,100%);
+      margin:0 auto;
+      padding:24px 20px 116px;
+    }
+
+    .glass{
+      background:linear-gradient(145deg,rgba(255,255,255,.075),rgba(255,255,255,.025));
+      border:1px solid var(--line);
+      box-shadow:var(--shadow),inset 0 1px rgba(255,255,255,.035);
+      backdrop-filter:blur(26px) saturate(140%);
+      -webkit-backdrop-filter:blur(26px) saturate(140%);
+    }
+
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      margin-bottom:18px;
+    }
+
+    .brand-wrap{display:flex;align-items:center;gap:13px;min-width:0}
+    .brand-icon{
+      width:44px;height:44px;border-radius:14px;display:grid;place-items:center;
+      background:linear-gradient(145deg,#a78bfa,#6366f1);
+      box-shadow:0 10px 28px rgba(99,102,241,.32),inset 0 1px rgba(255,255,255,.4);
+      flex:0 0 auto;
+    }
+    .brand-icon svg{width:22px;height:22px}
+    .brand-name{font-size:20px;font-weight:760;letter-spacing:-.035em}
+    .room-line{display:flex;align-items:center;gap:7px;margin-top:3px;color:#9297a7;font-size:12px}
+    .room-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#d9d8ff}
+
+    .top-actions{display:flex;align-items:center;gap:10px}
+    .online-pill,.leave-btn{
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.045);
+      box-shadow:inset 0 1px rgba(255,255,255,.035);
+    }
+    .online-pill{
+      display:flex;align-items:center;gap:8px;
+      padding:9px 12px;border-radius:999px;color:#b8bdc9;font-size:12px;white-space:nowrap;
+    }
+    .online-dot{width:7px;height:7px;border-radius:50%;background:#34d399;box-shadow:0 0 12px rgba(52,211,153,.65)}
+    .leave-btn{
+      color:#c8cad2;padding:9px 14px;border-radius:12px;font-size:12px;
+      transition:.2s ease;
+    }
+    .leave-btn:hover{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.22);color:#fecaca}
+
+    #searchWrapper{margin-bottom:16px}
+    .search-card{
+      display:flex;align-items:center;gap:10px;padding:9px;
+      border-radius:18px;
+    }
+    .search-icon{width:20px;height:20px;color:#888fa1;margin-left:7px;flex:0 0 auto}
+    #searchPro{
+      min-width:0;width:100%;border:0;outline:0;color:white;background:transparent;
+      padding:10px 2px;font-size:14px;
+    }
+    #searchPro::placeholder{color:#747a8a}
+    #btnSearch{
+      flex:0 0 auto;border:0;color:white;font-weight:650;font-size:13px;
+      padding:10px 18px;border-radius:13px;
+      background:linear-gradient(135deg,#8b5cf6,#6366f1);
+      box-shadow:0 8px 22px rgba(99,102,241,.24),inset 0 1px rgba(255,255,255,.24);
+      transition:transform .2s ease,box-shadow .2s ease,filter .2s ease;
+    }
+    #btnSearch:hover{transform:translateY(-1px);filter:brightness(1.07);box-shadow:0 12px 28px rgba(99,102,241,.3)}
+    #btnSearch:active{transform:scale(.97)}
+
+    #mainGrid{
+      display:grid !important;
+      grid-template-columns:minmax(0,1fr) 320px;
+      gap:18px;
+      align-items:start;
+    }
+
+    .music-column{min-width:0}
+    .player-card{border-radius:25px;padding:14px}
+    .player-head{
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+      padding:4px 4px 13px;
+    }
+    .section-kicker{
+      color:#8f95a5;font-size:10px;text-transform:uppercase;letter-spacing:.14em;font-weight:700;
+    }
+    .section-title{font-size:15px;font-weight:700;margin-top:3px}
+    .host-pill{
+      color:#bbb5ff;background:rgba(124,58,237,.12);border:1px solid rgba(139,92,246,.18);
+      padding:7px 10px;border-radius:999px;font-size:10px;font-weight:700;
+    }
+
+    #ytPlayer{
+      width:100% !important;
+      height:min(52vw,510px) !important;
+      min-height:270px;
+      background:#000 !important;
+      border-radius:20px !important;
+      overflow:hidden !important;
+      box-shadow:0 20px 55px rgba(0,0,0,.42);
+      border:1px solid rgba(255,255,255,.06);
+    }
+    #ytPlayer iframe{width:100%;height:100%;border:0}
+
+    .track-meta{
+      display:flex;align-items:center;gap:12px;margin-top:14px;
+      padding:2px 4px;
+    }
+    .track-cover{
+      width:48px;height:48px;border-radius:14px;object-fit:cover;
+      background:linear-gradient(145deg,#252837,#11131a);
+      border:1px solid rgba(255,255,255,.07);
+      box-shadow:0 8px 22px rgba(0,0,0,.25);
+    }
+    .track-copy{min-width:0}
+    #title{
+      font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #artist{font-size:12px;color:#898f9e;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+    .playlist-card{
+      margin-top:16px;border-radius:22px;padding:15px;
+    }
+    .playlist-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:11px}
+    .playlist-title{font-size:14px;font-weight:700}
+    .playlist-sub{font-size:10px;color:#777e8f}
+    #playlistBox{max-height:300px;overflow:auto;padding-right:2px}
+    #playlistBox > *{
+      border-radius:14px !important;
+      border:1px solid rgba(255,255,255,.055) !important;
+      background:rgba(255,255,255,.035) !important;
+      transition:.2s ease;
+    }
+    #playlistBox > *:hover{
+      background:rgba(255,255,255,.06) !important;
+      border-color:rgba(139,92,246,.2) !important;
+      transform:translateY(-1px);
+    }
+
+    .results-card{
+      border-radius:22px;padding:14px;position:sticky;top:18px;
+      max-height:calc(100vh - 170px);overflow:auto;
+    }
+    .results-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+    .results-title{font-size:14px;font-weight:700}
+    .results-label{font-size:10px;color:#777e8f}
+    #resultsBox{max-height:none !important}
+    #resultsBox > *{
+      border-radius:15px !important;
+      border:1px solid rgba(255,255,255,.055) !important;
+      background:rgba(255,255,255,.035) !important;
+      overflow:hidden;
+    }
+
+    #chatMini{display:none !important}
+
+    #chatFull{
+      grid-column:1 / -1;
+      width:100%;
+    }
+    #chatFull .chat-container{
+      height:min(72vh,720px);
+      min-height:480px;
+      border-radius:25px;
+      padding:14px;
+      display:flex;flex-direction:column;
+    }
+    #chatWindow{
+      flex:1;
+      min-height:0;
+      overflow:auto;
+      padding:8px 8px 14px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+
+    .chat-bubble{
+      max-width:min(76%,520px);
+      padding:11px 14px;
+      border-radius:18px;
+      line-height:1.35;
+      font-size:13px;
+      border:1px solid rgba(255,255,255,.06);
+      box-shadow:0 8px 20px rgba(0,0,0,.12);
+      word-break:break-word;
+    }
+    .chat-left{
+      align-self:flex-start;
+      background:rgba(255,255,255,.055);
+      color:#e7e9ef;
+      border-top-left-radius:6px;
+    }
+    .chat-right{
+      align-self:flex-end;
+      background:linear-gradient(135deg,#7c3aed,#4f46e5);
+      color:white;
+      border-top-right-radius:6px;
+      margin-left:auto;
+      border-color:rgba(255,255,255,.12);
+    }
+    #chatFull .chat-footer{
+      flex:0 0 auto;
+      display:flex;
+      align-items:center;
+      gap:9px;
+      padding:9px;
+      margin-top:3px;
+      border-radius:18px;
+      background:rgba(255,255,255,.045);
+      border:1px solid rgba(255,255,255,.07);
+      box-shadow:none;
+    }
+    #msgInput{
+      min-width:0;width:100%;border:0;outline:0;color:white;background:transparent;
+      padding:10px 8px;font-size:14px;
+    }
+    #msgInput::placeholder{color:#747a8a}
+    #btnSend{
+      width:42px !important;height:42px !important;flex:0 0 42px;
+      border:0;background:linear-gradient(135deg,#8b5cf6,#6366f1) !important;
+      box-shadow:0 8px 20px rgba(99,102,241,.25);
+      transition:.2s ease;
+    }
+    #btnSend:hover{transform:translateY(-1px);filter:brightness(1.07)}
+    #btnSend:active{transform:scale(.94)}
+
+    .bottom-nav{
+      position:fixed;z-index:20;left:50%;bottom:max(16px,env(safe-area-inset-bottom));
+      transform:translateX(-50%);
+      display:flex;gap:5px;padding:6px;
+      background:rgba(12,13,18,.76);
+      border:1px solid rgba(255,255,255,.1);
+      border-radius:18px;
+      box-shadow:0 18px 50px rgba(0,0,0,.45),inset 0 1px rgba(255,255,255,.06);
+      backdrop-filter:blur(24px) saturate(150%);
+      -webkit-backdrop-filter:blur(24px) saturate(150%);
+    }
+    .tab-btn{
+      min-width:104px;border:0;background:transparent;color:#858b9b;
+      padding:10px 17px;border-radius:13px;font-size:12px;font-weight:700;
+      transition:.2s ease;
+    }
+    .tab-btn.active{
+      color:white;
+      background:linear-gradient(145deg,rgba(139,92,246,.28),rgba(99,102,241,.18));
+      box-shadow:inset 0 1px rgba(255,255,255,.08),0 7px 18px rgba(0,0,0,.18);
+    }
+    .tab-icon{width:15px;height:15px;vertical-align:-3px;margin-right:5px}
+
+    .fade-in{animation:fadeIn .3s cubic-bezier(.2,.8,.2,1) both}
+    @keyframes fadeIn{
+      from{opacity:0;transform:translateY(8px) scale(.992)}
+      to{opacity:1;transform:none}
+    }
+    @keyframes pulseSoft{
+      0%,100%{opacity:.7}50%{opacity:1}
+    }
+
+    @media (max-width: 900px){
+      .app-shell{padding:18px 14px 105px}
+      #mainGrid{grid-template-columns:1fr}
+      .results-card{position:static;max-height:none}
+      #resultsBox{max-height:330px !important;overflow:auto}
+      #ytPlayer{height:min(56vw,460px) !important}
+    }
+
+    @media (max-width: 640px){
+      .app-shell{padding:12px 10px 100px}
+      .topbar{margin-bottom:12px}
+      .brand-icon{width:40px;height:40px;border-radius:13px}
+      .brand-name{font-size:18px}
+      .room-line{font-size:11px}
+      .online-pill{padding:8px 10px}
+      .leave-btn{padding:8px 11px}
+      .search-card{padding:7px;border-radius:16px}
+      #searchPro{font-size:13px;padding:9px 0}
+      #btnSearch{padding:9px 13px;font-size:12px}
+      .player-card{padding:9px;border-radius:21px}
+      .player-head{padding:4px 3px 10px}
+      #ytPlayer{
+        height:56.25vw !important;
+        min-height:205px;
+        border-radius:16px !important;
+      }
+      .track-meta{margin-top:11px}
+      .playlist-card,.results-card{border-radius:19px;padding:12px}
+      #playlistBox{max-height:270px}
+      #chatFull .chat-container{
+        height:calc(100dvh - 145px);
+        min-height:430px;
+        border-radius:20px;
+        padding:9px;
+      }
+      #chatWindow{padding:5px 5px 10px}
+      .chat-bubble{max-width:82%;font-size:13px;padding:10px 12px}
+      #chatFull .chat-footer{border-radius:16px}
+      .bottom-nav{bottom:max(10px,env(safe-area-inset-bottom));border-radius:16px}
+      .tab-btn{min-width:105px;padding:10px 13px}
+    }
+
+    @media (max-width: 390px){
+      .online-pill{display:none}
+      .leave-btn{font-size:11px}
+      .brand-icon{width:38px;height:38px}
+      .tab-btn{min-width:94px}
+    }
+
+    @media (prefers-reduced-motion:reduce){
+      *,*::before,*::after{scroll-behavior:auto !important;animation-duration:.01ms !important;transition-duration:.01ms !important}
+    }
   </style>
 </head>
-<body class="min-h-screen bg-gradient-to-b from-slate-900 to-black text-slate-100">
-  <div class="max-w-5xl mx-auto p-4">
 
-    <header class="flex items-center justify-between mb-4">
-      <div>
-        <div class="text-2xl font-bold">BeatSync</div>
-        <div class="text-sm text-slate-500">Room <span id="roomBadge" class="font-mono">—</span> · <span id="roleBadge">—</span></div>
+<body>
+  <div class="app-shell">
+
+    <header class="topbar">
+      <div class="brand-wrap">
+        <div class="brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 18V5l10-2v13"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="16" cy="16" r="3"></circle>
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <div class="brand-name">BeatSync</div>
+          <div class="room-line">
+            <span>Room</span>
+            <span id="roomBadge" class="room-code">—</span>
+            <span>·</span>
+            <span id="roleBadge">—</span>
+          </div>
+        </div>
       </div>
 
-      <div class="flex items-center gap-3">
-        <div id="onlineCount" class="text-sm text-slate-400">0 online</div>
-        <button id="btnLeave" class="px-3 py-1 rounded-md bg-slate-800">Leave</button>
+      <div class="top-actions">
+        <div id="onlineCount" class="online-pill">
+          <span class="online-dot"></span>
+          <span>0 online</span>
+        </div>
+        <button id="btnLeave" class="leave-btn" type="button">Leave</button>
       </div>
     </header>
 
-    <!-- search bar moved to top (page-wide) -->
-    <div id="searchWrapper" class="mb-4">
-      <div class="bg-slate-900 rounded-xl p-3 flex gap-3 items-center">
-        <input id="searchPro" placeholder="Search YouTube (Indian music) ..." class="flex-1 rounded-full bg-slate-800 px-4 py-2 outline-none" />
-        <button id="btnSearch" class="px-4 py-2 rounded-full bg-indigo-600">Search</button>
+    <div id="searchWrapper">
+      <div class="glass search-card">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="11" cy="11" r="7"></circle>
+          <path d="m20 20-4-4"></path>
+        </svg>
+        <input id="searchPro" autocomplete="off" placeholder="Search music..." />
+        <button id="btnSearch" type="button">Search</button>
       </div>
     </div>
-<!-- search results (right column) -->
-      <aside>
-        <div class="bg-slate-900 rounded-2xl p-4 mb-4">
-          <div id="resultsBox" class="space-y-2 max-h-96 overflow-auto"></div>
-        </div>
 
-        <div id="chatMini" class="bg-slate-900 rounded-2xl p-4 hidden">
-          <div id="miniChat" class="text-sm text-slate-400">Switch to Chat tab for full chat.</div>
-        </div>
-      </aside>
-    <main id="mainGrid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <!-- Player & playlist -->
-      
+    <main id="mainGrid" class="fade-in">
+
+      <section class="music-column">
+
+        <div class="glass player-card">
+          <div class="player-head">
+            <div>
+              <div class="section-kicker">Now playing</div>
+              <div class="section-title">Shared listening session</div>
             </div>
+            <div class="host-pill">SYNCED</div>
+          </div>
 
-            <!-- minimal host indicator area -->
-        
-          <div class="mt-4">
-            <!-- YouTube iframe container -->
-            <div id="ytPlayer" class="w-full h-56 bg-black rounded-md overflow-hidden"></div>
+          <div id="ytPlayer"></div>
 
-            <div class="mt-3 flex items-center gap-3">
-              <!-- Minimal playback controls (visible only to host) -->
-
-                </div>
-              </div>
+          <div class="track-meta">
+            <img id="cover" class="track-cover" alt="" />
+            <div class="track-copy">
+              <div id="title">Ready to play</div>
+              <div id="artist">Choose a song from your search</div>
             </div>
           </div>
         </div>
 
-        <div class="bg-slate-900 rounded-2xl p-3 mt-4">
-          <div class="flex items-center justify-between mb-2">
-            <div class="font-semibold">Playlist</div>
-            <div class="text-xs text-slate-400">Auto play order</div>
+        <div class="glass playlist-card">
+          <div class="playlist-head">
+            <div class="playlist-title">Playlist</div>
+            <div class="playlist-sub">Auto play order</div>
           </div>
-          <div id="playlistBox" class="space-y-2 max-h-96 overflow-auto"></div>
+          <div id="playlistBox" class="space-y-2"></div>
         </div>
+
       </section>
 
-      
+      <aside>
+        <div class="glass results-card">
+          <div class="results-head">
+            <div class="results-title">Search results</div>
+            <div class="results-label">Music</div>
+          </div>
+          <div id="resultsBox" class="space-y-2"></div>
+        </div>
 
-      <!-- full-screen chat -->
-      <section id="chatFull" class="col-span-full hidden">
-        <div class="bg-slate-900 rounded-2xl p-4 h-[70vh] flex flex-col">
-          <div id="chatWindow" class="flex-1 overflow-auto space-y-3 pb-3"></div>
+        <div id="chatMini" class="hidden">
+          <div id="miniChat">Switch to Chat tab for full chat.</div>
+        </div>
+      </aside>
 
-          <!-- chat footer always visible in chatFull -->
-          <div class="chat-footer mt-3 flex items-center gap-3">
-            <input id="msgInput" type="text" placeholder="Message..." class="flex-1 rounded-full bg-slate-800 px-4 py-3" />
-            <button id="btnSend" class="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-white">
-              <!-- send icon -->
+      <section id="chatFull" class="hidden">
+        <div class="glass chat-container">
+          <div id="chatWindow"></div>
+
+          <div class="chat-footer">
+            <input id="msgInput" type="text" autocomplete="off" placeholder="Message..." />
+            <button id="btnSend" type="button" aria-label="Send message">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M22 2L11 13"></path>
-                <path d="M22 2L15 22L11 13L2 9L22 2Z" />
+                <path d="M22 2L15 22L11 13L2 9L22 2Z"></path>
               </svg>
             </button>
           </div>
         </div>
       </section>
+
     </main>
 
-    <nav class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-black/60 border border-slate-800 rounded-full px-3 py-2 flex gap-2 shadow-lg">
-      <button id="musicTabBtn" class="px-4 py-1 rounded-full bg-slate-800 text-slate-100">Music</button>
-      <button id="chatTabBtn" class="px-4 py-1 rounded-full text-slate-400">Chat</button>
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button id="musicTabBtn" class="tab-btn active" type="button">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+          <path d="M9 18V5l10-2v13"></path>
+          <circle cx="6" cy="18" r="3"></circle>
+          <circle cx="16" cy="16" r="3"></circle>
+        </svg>
+        Music
+      </button>
+
+      <button id="chatTabBtn" class="tab-btn" type="button">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+          <path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H8l-4 3v-6.2A7.4 7.4 0 0 1 4.5 11 7.5 7.5 0 0 1 12 4h.5A7.5 7.5 0 0 1 20 11.5Z"></path>
+        </svg>
+        Chat
+      </button>
     </nav>
+
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
   <script src="player.js"></script>
 
+  <script>
+    /*
+      Frontend-only polish layer.
+      Existing player.js hooks/IDs are intentionally preserved.
+    */
+    (function(){
+      const musicBtn = document.getElementById('musicTabBtn');
+      const chatBtn = document.getElementById('chatTabBtn');
 
+      function setActive(btn, other){
+        if(!btn || !other) return;
+        btn.classList.add('active');
+        other.classList.remove('active');
+      }
 
+      musicBtn?.addEventListener('click',()=>setActive(musicBtn,chatBtn));
+      chatBtn?.addEventListener('click',()=>setActive(chatBtn,musicBtn));
+
+      const observer = new MutationObserver(()=>{
+        const chat = document.getElementById('chatFull');
+        const music = document.querySelector('.music-column');
+        const search = document.getElementById('searchWrapper');
+        const isChat = chat && !chat.classList.contains('hidden');
+
+        if(isChat){
+          chat.classList.add('fade-in');
+          music?.classList.add('hidden');
+          search?.classList.add('hidden');
+        }else{
+          music?.classList.remove('hidden');
+          search?.classList.remove('hidden');
+        }
+      });
+
+      const main = document.getElementById('mainGrid');
+      if(main) observer.observe(main,{attributes:true,subtree:true,attributeFilter:['class','style']});
+    })();
+  </script>
 </body>
 </html>
